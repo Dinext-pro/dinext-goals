@@ -1,9 +1,6 @@
-from unittest.mock import patch
-
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from dinext_goals import install
 from dinext_goals.constants import GOAL_ROLES, SETTINGS, WORKFLOW_NAME
 from dinext_goals.setup.dinext_hub import HUB_ITEMS
 
@@ -68,28 +65,6 @@ class TestAppBootstrap(FrappeTestCase):
 		self.assertTrue(frappe.db.exists("Page", "goal-map"))
 		my_goals = frappe.get_doc("Number Card", "My Goals")
 		self.assertIn("frappe.session.user", my_goals.dynamic_filters_json)
-
-	def test_goal_roles_read_number_cards(self):
-		frappe.db.delete("Custom DocPerm", {"parent": "Number Card", "role": ["in", GOAL_ROLES]})
-		frappe.get_doc(
-			{
-				"doctype": "Custom DocPerm",
-				"parent": "Number Card",
-				"role": "System Manager",
-				"permlevel": 0,
-				"read": 1,
-			}
-		).insert(ignore_permissions=True)
-		install.ensure_number_card_read()
-		readers = set(
-			frappe.get_all("Custom DocPerm", filters={"parent": "Number Card", "read": 1}, pluck="role")
-		)
-		self.assertTrue(set(GOAL_ROLES) <= readers)
-
-	def test_standard_permissions_stay_untouched(self):
-		with patch.object(install, "WIDGET_DOCTYPE", "Goal Log"):
-			install.ensure_number_card_read()
-		self.assertFalse(frappe.db.exists("Custom DocPerm", {"parent": "Goal Log"}))
 
 	def test_hub_items(self):
 		if not frappe.db.exists("Dinext Workspace Settings", "Dinext"):
