@@ -1,0 +1,287 @@
+{
+ "actions": [],
+ "creation": "2026-10-02 03:00:00",
+ "description": "Goal of a template; items form a tree through item_key and parent_key.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_key",
+  "parent_key",
+  "subject",
+  "goal_code",
+  "goal_type",
+  "is_group",
+  "weight",
+  "priority",
+  "progress_method",
+  "owner_column",
+  "owner_source",
+  "fixed_owner",
+  "start_offset_days",
+  "duration_days",
+  "description",
+  "metric_section",
+  "metric_type",
+  "unit",
+  "currency",
+  "baseline",
+  "target",
+  "target_source",
+  "target_provider",
+  "target_formula",
+  "metric_column",
+  "metric_source",
+  "metric_provider",
+  "linked_document_type",
+  "linked_document_filter",
+  "linked_document_field",
+  "aggregation",
+  "calculation_rule",
+  "result_section",
+  "scale_spec",
+  "result_label",
+  "result_formula"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "fieldname": "item_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Key",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "description": "Empty for the root goal of the template.",
+   "fieldname": "parent_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Parent Key"
+  },
+  {
+   "columns": 4,
+   "fieldname": "subject",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Subject",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "Appended to the code prefix entered when creating goals.",
+   "fieldname": "goal_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Goal Code Suffix"
+  },
+  {
+   "fieldname": "goal_type",
+   "fieldtype": "Link",
+   "label": "Goal Type",
+   "options": "Goal Type"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Group"
+  },
+  {
+   "default": "1",
+   "fieldname": "weight",
+   "fieldtype": "Float",
+   "label": "Weight",
+   "non_negative": 1
+  },
+  {
+   "default": "Medium",
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "label": "Priority",
+   "options": "Low\nMedium\nHigh\nCritical"
+  },
+  {
+   "default": "Auto",
+   "fieldname": "progress_method",
+   "fieldtype": "Select",
+   "label": "Progress Method",
+   "options": "Manual\nAuto"
+  },
+  {
+   "fieldname": "owner_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Goal Owner",
+   "description": "Goal Owner: the owner entered when creating goals. Parent Goal Owner: the owner of the parent goal selected when creating goals.",
+   "fieldname": "owner_source",
+   "fieldtype": "Select",
+   "label": "Owner Source",
+   "options": "Goal Owner\nParent Goal Owner\nUser"
+  },
+  {
+   "depends_on": "eval:doc.owner_source == 'User'",
+   "fieldname": "fixed_owner",
+   "fieldtype": "Link",
+   "label": "Owner",
+   "mandatory_depends_on": "eval:doc.owner_source == 'User'",
+   "options": "User"
+  },
+  {
+   "default": "0",
+   "fieldname": "start_offset_days",
+   "fieldtype": "Int",
+   "label": "Start Offset, Days",
+   "non_negative": 1
+  },
+  {
+   "description": "Empty: default duration of the template.",
+   "fieldname": "duration_days",
+   "fieldtype": "Int",
+   "label": "Duration, Days",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "depends_on": "eval:!doc.is_group",
+   "fieldname": "metric_section",
+   "fieldtype": "Section Break",
+   "label": "Metric"
+  },
+  {
+   "fieldname": "metric_type",
+   "fieldtype": "Select",
+   "label": "Metric Type",
+   "options": "\nNumeric\nPercent\nCurrency\nBoolean"
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "default": "0",
+   "fieldname": "baseline",
+   "fieldtype": "Float",
+   "label": "Baseline"
+  },
+  {
+   "default": "0",
+   "fieldname": "target",
+   "fieldtype": "Float",
+   "label": "Target"
+  },
+  {
+   "default": "Manual",
+   "fieldname": "target_source",
+   "fieldtype": "Select",
+   "label": "Target Source",
+   "options": "Manual\nProvider\nFormula"
+  },
+  {
+   "fieldname": "target_provider",
+   "fieldtype": "Autocomplete",
+   "label": "Target Provider",
+   "description": "Provider that returns the target. Empty: the metric provider."
+  },
+  {
+   "fieldname": "target_formula",
+   "fieldtype": "Code",
+   "label": "Target Formula",
+   "options": "Python"
+  },
+  {
+   "fieldname": "metric_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Linked Documents",
+   "fieldname": "metric_source",
+   "fieldtype": "Select",
+   "label": "Metric Source",
+   "options": "Linked Documents\nProvider\nPython Rule"
+  },
+  {
+   "fieldname": "metric_provider",
+   "fieldtype": "Autocomplete",
+   "label": "Metric Provider"
+  },
+  {
+   "fieldname": "linked_document_type",
+   "fieldtype": "Link",
+   "label": "Linked Document Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "linked_document_filter",
+   "fieldtype": "Code",
+   "label": "Linked Document Filter",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "linked_document_field",
+   "fieldtype": "Data",
+   "label": "Linked Document Field"
+  },
+  {
+   "default": "Sum",
+   "fieldname": "aggregation",
+   "fieldtype": "Select",
+   "label": "Aggregation",
+   "options": "Sum\nAvg\nMax\nMin\nLatest\nCount"
+  },
+  {
+   "fieldname": "calculation_rule",
+   "fieldtype": "Code",
+   "label": "Calculation Rule",
+   "options": "Python"
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "description": "One step per line: threshold_percent:coefficient, e.g. 0:0, 50:0.3, 90:1.",
+   "fieldname": "scale_spec",
+   "fieldtype": "Small Text",
+   "label": "Coefficient Scale"
+  },
+  {
+   "fieldname": "result_label",
+   "fieldtype": "Data",
+   "label": "Result Label"
+  },
+  {
+   "fieldname": "result_formula",
+   "fieldtype": "Code",
+   "label": "Result Formula",
+   "options": "Python"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-02 04:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goal Template Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

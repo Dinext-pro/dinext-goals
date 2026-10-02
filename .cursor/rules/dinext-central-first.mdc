@@ -1,0 +1,12 @@
+---
+description: Dinext — сначала central guidance из dinext-docs, затем локальное и generic
+alwaysApply: true
+---
+
+В этом репозитории — Dinext consumer-приложение: общие инструкции и skills живут в sibling-репозитории `dinext-docs`, а не только локально.
+
+**Перед любой реализацией, отладкой, hotfix или ревью:** прочитай корневой navigation stub этого приложения, затем обязательно открой `../dinext-docs/agents/ide/runtime-access.md`, `../dinext-docs/agents/registry/index.yaml`, `../dinext-docs/agents/ide/agents/dinext-frappe-developer-guide.md`, а также mandatory OpenSpec assets `../dinext-docs/agents/ide/rules/openspec-mandatory-workflow.md` и `../dinext-docs/agents/ide/skills/openspec-development-workflow/SKILL.md` (путь к `dinext-docs` подставь по факту clone, если layout не `apps/<app>/`). Не трактуй `dinext-docs` как опциональную справку до выполнения этого шага.
+
+**OpenSpec gate (обязательно, без исключений):** до любых правок проверь Store (`openspec doctor` / `openspec context`), найди или создай change в Store `dinext-docs` через slash-команды `/opsx-propose` / `/opsx-update`; реализация только через `/opsx-apply` после готовых proposal/design/specs/tasks; завершение — `/opsx-archive`. В этом репозитории допустимы `openspec/config.yaml` с `store: dinext-docs` и синхронизированные `.cursor/commands/opsx-*.md`; локальные `openspec/specs` и `openspec/changes` не создавать. Hotfix без change / без `/opsx-*` запрещён. См. `../dinext-docs/process/development-management/openspec-store.md`.
+
+Встроенные generic/platform skills — после central Dinext слоя (включая OpenSpec), если нет явного конфликта; при конфликте приоритет у central guidance из `dinext-docs`. Локальные `.cursor/skills/` и `.cursor/rules/` — только дополнение к central слою.

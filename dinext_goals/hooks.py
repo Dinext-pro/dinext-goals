@@ -6,3 +6,74 @@ app_email = "info@dinext.ru"
 app_license = "GNU General Public License (v3)"
 
 required_apps = ["dinext_common", "erpnext"]
+
+after_install = "dinext_goals.install.after_install"
+after_migrate = ["dinext_goals.install.after_migrate"]
+
+fixtures = [
+	{
+		"doctype": "Role",
+		"filters": [
+			["name", "in", ["Goal Manager", "Goal Owner", "Goal Approver", "Goal Finance Approver"]],
+		],
+	},
+	{
+		"doctype": "Workflow State",
+		"filters": [
+			["workflow_state_name", "in", ["Draft", "Parent Approval", "Finance Approval", "Approved"]],
+		],
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"filters": [
+			["name", "in", ["Submit for Approval", "Approve", "Reject"]],
+		],
+	},
+	{
+		"doctype": "Workflow",
+		"filters": [
+			["name", "in", ["Goal Approval"]],
+		],
+	},
+	{
+		"doctype": "Goal Type",
+		"filters": [
+			["name", "in", ["OKR", "KPI", "Project Goal", "Personal", "Strategic"]],
+		],
+	},
+]
+
+has_permission = {
+	"Goal": "dinext_goals.goals.permissions.goal_has_permission",
+	"Goal Log": "dinext_goals.goals.permissions.goal_log_has_permission",
+}
+
+scheduler_events = {
+	"daily": ["dinext_goals.tasks.daily"],
+}
+
+dinext_goals_metric_providers = {
+	"gl_profit": "dinext_goals.providers.gl_profit.provider",
+	"project_budget_profit": "dinext_goals.providers.project_budget.provider",
+	"timesheet_utilization": "dinext_goals.providers.timesheet_utilization.provider",
+	"energy_points": "dinext_goals.providers.energy_points.provider",
+}
+
+workflow_approval_fingerprint_excluded_fields = [
+	{
+		"Goal": [
+			"progress",
+			"current_value",
+			"achievement_percent",
+			"planned_progress",
+			"deviation",
+			"rag_status",
+			"is_overdue",
+			"last_calculated_on",
+			"coefficient",
+			"result_value",
+			"approver_users",
+			"status",
+		],
+	}
+]

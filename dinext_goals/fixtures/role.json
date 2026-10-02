@@ -1,0 +1,54 @@
+[
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Role",
+  "home_page": null,
+  "is_custom": 0,
+  "modified": "2026-10-02 03:14:28.763653",
+  "name": "Goal Manager",
+  "restrict_to_domain": null,
+  "role_name": "Goal Manager",
+  "two_factor_auth": 0
+ },
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Role",
+  "home_page": null,
+  "is_custom": 0,
+  "modified": "2026-10-02 03:14:29.359157",
+  "name": "Goal Owner",
+  "restrict_to_domain": null,
+  "role_name": "Goal Owner",
+  "two_factor_auth": 0
+ },
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Role",
+  "home_page": null,
+  "is_custom": 0,
+  "modified": "2026-10-02 03:14:29.371808",
+  "name": "Goal Approver",
+  "restrict_to_domain": null,
+  "role_name": "Goal Approver",
+  "two_factor_auth": 0
+ },
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Role",
+  "home_page": null,
+  "is_custom": 0,
+  "modified": "2026-10-02 03:14:29.383469",
+  "name": "Goal Finance Approver",
+  "restrict_to_domain": null,
+  "role_name": "Goal Finance Approver",
+  "two_factor_auth": 0
+ }
+]

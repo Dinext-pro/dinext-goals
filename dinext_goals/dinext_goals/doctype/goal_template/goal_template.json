@@ -1,0 +1,133 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:template_name",
+ "creation": "2026-10-02 03:00:00",
+ "description": "Reusable goal tree.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "goal_type",
+  "column_break_main",
+  "is_active",
+  "default_duration_days",
+  "description",
+  "items_section",
+  "items",
+  "parameters_section",
+  "template_parameters"
+ ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "goal_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Default Goal Type",
+   "options": "Goal Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active"
+  },
+  {
+   "default": "90",
+   "fieldname": "default_duration_days",
+   "fieldtype": "Int",
+   "label": "Default Duration, Days",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "items_section",
+   "fieldtype": "Section Break",
+   "label": "Goals"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Goals",
+   "options": "Goal Template Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "parameters_section",
+   "fieldtype": "Section Break",
+   "label": "Parameters"
+  },
+  {
+   "fieldname": "template_parameters",
+   "fieldtype": "Table",
+   "label": "Parameters",
+   "options": "Goal Template Parameter"
+  }
+ ],
+ "links": [
+  {
+   "link_doctype": "Goal",
+   "link_fieldname": "goal_template"
+  }
+ ],
+ "modified": "2026-10-02 03:17:02.066559",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goal Template",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Goal Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Goal Owner"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "template_name"
+}

@@ -1,0 +1,132 @@
+{
+ "charts": [
+  {
+   "chart_name": "Goals at Risk by Type",
+   "label": "Goals at Risk by Type"
+  },
+  {
+   "chart_name": "Goals at Risk by Owner",
+   "label": "Goals at Risk by Owner"
+  },
+  {
+   "chart_name": "Goals by Status",
+   "label": "Goals by Status"
+  },
+  {
+   "chart_name": "Average Progress by Type",
+   "label": "Average Progress by Type"
+  }
+ ],
+ "content": "[{\"id\": \"goals-h1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Цели</b></span>\", \"col\": 12}}, {\"id\": \"goals-s0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Goal\", \"col\": 3}}, {\"id\": \"goals-s1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Goal Map\", \"col\": 3}}, {\"id\": \"goals-s2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Goal Template\", \"col\": 3}}, {\"id\": \"goals-s3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Мои согласования\", \"col\": 3}}, {\"id\": \"goals-s4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Goals Settings\", \"col\": 3}}, {\"id\": \"goals-h2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h5\\\"><b>Количество</b></span>\", \"col\": 12}}, {\"id\": \"goals-c0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"All Goals\", \"col\": 4}}, {\"id\": \"goals-c1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"My Goals\", \"col\": 4}}, {\"id\": \"goals-c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Goals for Approval\", \"col\": 4}}, {\"id\": \"goals-c3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Active Goals\", \"col\": 4}}, {\"id\": \"goals-c4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Goals at Risk\", \"col\": 4}}, {\"id\": \"goals-c5\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Overdue Goals\", \"col\": 4}}, {\"id\": \"goals-h3\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h5\\\"><b>Мой прогресс</b></span>\", \"col\": 12}}, {\"id\": \"goals-m0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"My Average Progress\", \"col\": 4}}, {\"id\": \"goals-m1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"My Maximum Progress\", \"col\": 4}}, {\"id\": \"goals-m2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"My Minimum Progress\", \"col\": 4}}, {\"id\": \"goals-h4\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h5\\\"><b>Под риском</b></span>\", \"col\": 12}}, {\"id\": \"goals-g0\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Goals at Risk by Type\", \"col\": 6}}, {\"id\": \"goals-g1\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Goals at Risk by Owner\", \"col\": 6}}, {\"id\": \"goals-g2\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Goals by Status\", \"col\": 6}}, {\"id\": \"goals-g3\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Average Progress by Type\", \"col\": 6}}]",
+ "creation": "2026-10-02 03:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "target",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Цели",
+ "links": [],
+ "modified": "2026-10-02 03:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Цели",
+ "number_cards": [
+  {
+   "label": "All Goals",
+   "number_card_name": "All Goals"
+  },
+  {
+   "label": "My Goals",
+   "number_card_name": "My Goals"
+  },
+  {
+   "label": "Goals for Approval",
+   "number_card_name": "Goals for Approval"
+  },
+  {
+   "label": "Active Goals",
+   "number_card_name": "Active Goals"
+  },
+  {
+   "label": "Goals at Risk",
+   "number_card_name": "Goals at Risk"
+  },
+  {
+   "label": "Overdue Goals",
+   "number_card_name": "Overdue Goals"
+  },
+  {
+   "label": "My Average Progress",
+   "number_card_name": "My Average Progress"
+  },
+  {
+   "label": "My Maximum Progress",
+   "number_card_name": "My Maximum Progress"
+  },
+  {
+   "label": "My Minimum Progress",
+   "number_card_name": "My Minimum Progress"
+  }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Goal Manager"
+  },
+  {
+   "role": "Goal Owner"
+  },
+  {
+   "role": "Goal Approver"
+  },
+  {
+   "role": "Goal Finance Approver"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "sequence_id": 40.0,
+ "shortcuts": [
+  {
+   "label": "Goal",
+   "type": "DocType",
+   "link_to": "Goal",
+   "doc_view": "List",
+   "color": "Blue"
+  },
+  {
+   "label": "Goal Map",
+   "type": "Page",
+   "link_to": "goal-map",
+   "color": "Green"
+  },
+  {
+   "label": "Goal Template",
+   "type": "DocType",
+   "link_to": "Goal Template",
+   "doc_view": "List",
+   "color": "Grey"
+  },
+  {
+   "label": "Мои согласования",
+   "type": "URL",
+   "url": "/app/мои-согласования",
+   "color": "Orange"
+  },
+  {
+   "label": "Goals Settings",
+   "type": "DocType",
+   "link_to": "Goals Settings",
+   "color": "Grey"
+  }
+ ],
+ "title": "Цели"
+}
