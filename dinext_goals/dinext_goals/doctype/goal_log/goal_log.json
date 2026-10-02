@@ -1,0 +1,154 @@
+{
+ "actions": [],
+ "autoname": "GLOG-.YYYY.-.#######",
+ "creation": "2026-10-02 03:00:00",
+ "description": "History of goal progress and actual values.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "goal",
+  "goal_subject",
+  "log_date",
+  "author",
+  "source",
+  "values_column",
+  "progress",
+  "planned_progress",
+  "current_value",
+  "achievement_percent",
+  "coefficient",
+  "result_value",
+  "comment"
+ ],
+ "fields": [
+  {
+   "fieldname": "goal",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Goal",
+   "options": "Goal",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "goal.subject",
+   "fieldname": "goal_subject",
+   "fieldtype": "Data",
+   "label": "Subject",
+   "read_only": 1
+  },
+  {
+   "fieldname": "log_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Log Date",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "author",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Author",
+   "options": "User"
+  },
+  {
+   "default": "Manual",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "Manual\nAuto"
+  },
+  {
+   "fieldname": "values_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "progress",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Progress"
+  },
+  {
+   "fieldname": "planned_progress",
+   "fieldtype": "Percent",
+   "label": "Planned Progress"
+  },
+  {
+   "fieldname": "current_value",
+   "fieldtype": "Float",
+   "label": "Current Value"
+  },
+  {
+   "fieldname": "achievement_percent",
+   "fieldtype": "Float",
+   "label": "Achievement, %"
+  },
+  {
+   "fieldname": "coefficient",
+   "fieldtype": "Float",
+   "label": "Coefficient",
+   "precision": "4"
+  },
+  {
+   "fieldname": "result_value",
+   "fieldtype": "Float",
+   "label": "Result Value"
+  },
+  {
+   "fieldname": "comment",
+   "fieldtype": "Small Text",
+   "label": "Comment"
+  }
+ ],
+ "in_create": 1,
+ "links": [],
+ "modified": "2026-10-02 03:17:01.308584",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goal Log",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Goal Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Goal Owner"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Goal Approver"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Goal Finance Approver"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "log_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "goal_subject"
+}
