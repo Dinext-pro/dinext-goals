@@ -7,9 +7,12 @@ Q3 2026 goes through the approval engine, is recalculated and closed; Q4 2026 st
 few branches left For Approval. Every record the demo creates carries the ``DEMO-ITK`` marker or is
 listed in the global state, so ``setup`` can be re-run and ``teardown`` removes exactly what was added.
 
-Extra timesheet hours are written as already approved positions (like imported history): the
-timesheet approval workflow finalizes through background Workflow Tasks and cannot be driven
-synchronously from a script.
+Goal templates ship as fixtures of the app; the demo only checks they are present.
+
+Timesheet hours are written as already approved positions of the user timesheets (like imported
+history): the approval workflow finalizes through background Workflow Tasks and cannot be driven
+synchronously from a script. Missing timesheets are created, every touched timesheet is recalculated
+by dinext_timesheets and approved, and teardown restores the totals and statuses it found.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 import frappe
+from frappe import _
 from frappe.utils import getdate, now_datetime
 
 from dinext_goals.constants import (
@@ -32,9 +36,23 @@ from dinext_goals.constants import (
 )
 from dinext_goals.goals import hierarchy, lifecycle
 from dinext_goals.progress import engine
-from dinext_goals.providers.timesheet_utilization import APPROVED_STATUS, planned_hours, utilized_hours
+from dinext_goals.providers.timesheet_utilization import APPROVED_TIMESHEET_STATUS as TIMESHEET_APPROVED
 
 MARKER = "DEMO-ITK"
+LEAVE_APPROVED = POSITION_APPROVED = "Согласовано"
+TIMESHEET_FIELDS = (
+	"ut_status",
+	"total_hours_worked",
+	"total_hours_utilized",
+	"total_hours_schedule",
+	"total_hours_leave",
+	"total_hours_util_leave",
+	"total_hours_to_work",
+	"utilization_hours_plan",
+	"utilization_fulfillment",
+	"utilization",
+	"normalization",
+)
 STATE_KEY = "dinext_goals_demo_motivation_itk"
 COMPANY = "Dinext"
 COMPANY_ROOT_CC = "Dinext - D"
@@ -145,6 +163,7 @@ WORKERS = {
 Q3_UTILIZATION = {ALEXEY: 115, DMITRY: 85, MARIA: 95, ANNA: 70}
 OCTOBER_HOURS = {ELENA: 3, ALEXEY: 6, DMITRY: 4, SERGEY: 2, MARIA: 7, ANNA: 3}
 OCTOBER_DAYS = ("2026-10-01", "2026-10-02")
+OCTOBER_WEEK = ("2026-10-01", "2026-10-04")
 TIMESHEET_TASK = {CC_IMPL: ("DEMO-RU-09", "TASK-2026-00069"), CC_SUPP: ("DEMO-RU-05", "TASK-2026-00049")}
 OCTOBER_POINTS = {ALEXEY: 80, DMITRY: 30, MARIA: 90, ANNA: 40}
 
@@ -370,7 +389,7 @@ def _absence_days(user: str, date_from, date_to) -> set[date]:
 		"Application For Leave",
 		filters={
 			"lauser": user,
-			"status": APPROVED_STATUS,
+			"status": LEAVE_APPROVED,
 			"alfrom_date": ["<=", date_to],
 			"alto_date": [">=", date_from],
 		},
@@ -413,8 +432,57 @@ def _spread(total: float, days: list[date]) -> dict[date, float]:
 	return {day: value for day, value in hours.items() if value > 0}
 
 
-def _insert_position(user: str, hours_by_day: dict[date, float]) -> None:
-	"""One approved position per ISO week, inserted without workflow hooks."""
+def _timesheet_periods(date_from, date_to) -> list[tuple[date, date]]:
+	"""Monday-to-Sunday weeks split at month ends, as the dinext_timesheets scheduler creates them."""
+	periods, day, last = [], getdate(date_from), getdate(date_to)
+	while day <= last:
+		sunday = day + timedelta(days=6 - day.weekday())
+		month_end = (day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+		end = min(sunday, month_end, last)
+		periods.append((day, end))
+		day = end + timedelta(days=1)
+	return periods
+
+
+def _snapshot_timesheet(state: dict, name: str) -> None:
+	if name in state.get("timesheets", []):
+		return
+	if name not in {row["name"] for row in state.get("timesheets_touched", [])}:
+		saved = frappe.db.get_value("User Timesheet", name, list(TIMESHEET_FIELDS), as_dict=True)
+		_track(state, "timesheets_touched", {"name": name, **saved})
+
+
+def _create_timesheet(state: dict, user: str, start: date, end: date) -> str:
+	doc = frappe.get_doc(
+		{
+			"doctype": "User Timesheet",
+			"timesheet_from": user,
+			"timesheet_from_name": frappe.db.get_value("User", user, "full_name"),
+			"ts_valid_from": start,
+			"ts_valid_for": end,
+			"ut_status": "Черновик",
+		}
+	).insert(ignore_permissions=True)
+	_track(state, "timesheets", doc.name)
+	return doc.name
+
+
+def _recalculate_timesheet(name: str, status: str | None = None) -> None:
+	"""Totals by the dinext_timesheets algorithm, written without on_update: approving a timesheet
+	there posts Journal Entries, which would change the gross profit of the demo."""
+	from dinext_timesheets.dinext_timesheets.user_timesheet.events.hours import calculate_ut_hours
+
+	doc = frappe.get_doc("User Timesheet", name)
+	calculate_ut_hours(doc)
+	if status:
+		doc.ut_status = status
+	doc.db_update()
+
+
+def _insert_position(user: str, timesheet: str, start: date, hours_by_day: dict[date, float]) -> None:
+	"""An approved position of the timesheet, inserted without workflow hooks."""
+	if not hours_by_day:
+		return
 	cost_center = WORKERS[user]["cost_center"]
 	project, task = TIMESHEET_TASK[cost_center]
 	template = frappe.get_all(
@@ -424,85 +492,134 @@ def _insert_position(user: str, hours_by_day: dict[date, float]) -> None:
 		limit=1,
 	)
 	template = template[0] if template else frappe._dict()
-	full_name = template.custom_username or frappe.db.get_value("User", user, "full_name")
-	weeks: dict[date, dict[date, float]] = defaultdict(dict)
-	for day, value in hours_by_day.items():
-		weeks[day - timedelta(days=day.weekday())][day] = value
-	for monday, days in sorted(weeks.items()):
-		sunday = monday + timedelta(days=6)
-		timesheet = f"{full_name} - {monday} - {sunday}"
-		doc = frappe.get_doc(
+	doc = frappe.get_doc(
+		{
+			"doctype": "User Timesheet Position",
+			"user": user,
+			"user_timesheet": timesheet,
+			"custom_username": template.custom_username or frappe.db.get_value("User", user, "full_name"),
+			"user_group": template.user_group,
+			"project_role": template.project_role or "Разработчик",
+			"project": project,
+			"document_type": "Task",
+			"document_name": task,
+			"status": POSITION_APPROVED,
+			"workflow_state": POSITION_APPROVED,
+			"period": f"{start.year}-{start.month:02d}-{start.isocalendar()[1]}",
+			"all_hours": sum(hours_by_day.values()),
+			"custom_data": MARKER,
+		}
+	)
+	doc.owner = user
+	doc.creation = doc.modified = now_datetime()
+	doc.set_new_name()
+	doc.db_insert()
+	for idx, (day, value) in enumerate(sorted(hours_by_day.items()), start=1):
+		row = frappe.get_doc(
 			{
-				"doctype": "User Timesheet Position",
-				"user": user,
-				"user_timesheet": timesheet if frappe.db.exists("User Timesheet", timesheet) else None,
-				"custom_username": full_name,
-				"user_group": template.user_group,
-				"project_role": template.project_role or "Разработчик",
-				"project": project,
-				"document_type": "Task",
-				"document_name": task,
-				"status": APPROVED_STATUS,
-				"workflow_state": APPROVED_STATUS,
-				"period": f"{monday.year}-{monday.month:02d}-{monday.isocalendar()[1]}",
-				"all_hours": sum(days.values()),
-				"custom_data": MARKER,
+				"doctype": "User Timesheet Position Details",
+				"parent": doc.name,
+				"parenttype": "User Timesheet Position",
+				"parentfield": "table",
+				"idx": idx,
+				"date": day,
+				"hours": value,
+				"utilized_hours": value,
+				"description": MARKER,
 			}
 		)
-		doc.owner = user
-		doc.creation = doc.modified = now_datetime()
-		doc.set_new_name()
-		doc.db_insert()
-		for idx, (day, value) in enumerate(sorted(days.items()), start=1):
-			row = frappe.get_doc(
-				{
-					"doctype": "User Timesheet Position Details",
-					"parent": doc.name,
-					"parenttype": "User Timesheet Position",
-					"parentfield": "table",
-					"idx": idx,
-					"date": day,
-					"hours": value,
-					"utilized_hours": value,
-					"description": MARKER,
-				}
+		row.db_insert()
+
+
+def _period_timesheets(state: dict, user: str, date_from, date_to) -> list[tuple[str, date, date]]:
+	"""Timesheets starting in the period; days no timesheet covers get new ones."""
+	first, last = getdate(date_from), getdate(date_to)
+	existing = frappe.get_all(
+		"User Timesheet",
+		filters={"timesheet_from": user, "ts_valid_from": ["<=", last], "ts_valid_for": [">=", first]},
+		fields=["name", "ts_valid_from", "ts_valid_for"],
+	)
+	sheets = [(row.name, getdate(row.ts_valid_from), getdate(row.ts_valid_for)) for row in existing]
+	day, run_start = first, None
+	while day <= last + timedelta(days=1):
+		covered = day > last or any(start <= day <= end for _name, start, end in sheets)
+		if not covered and run_start is None:
+			run_start = day
+		elif covered and run_start is not None:
+			for start, end in _timesheet_periods(run_start, day - timedelta(days=1)):
+				sheets.append((_create_timesheet(state, user, start, end), start, end))
+			run_start = None
+		day += timedelta(days=1)
+	return sorted((sheet for sheet in sheets if sheet[1] >= first), key=lambda sheet: sheet[1])
+
+
+def _fill_timesheets(state: dict, user: str, date_from, date_to, hours_for) -> None:
+	"""Add the hours ``hours_for(sheets)`` to the timesheets of the period and approve them."""
+	sheets = _period_timesheets(state, user, date_from, date_to)
+	for name, _start, _end in sheets:
+		_snapshot_timesheet(state, name)
+		_recalculate_timesheet(name)
+	hours = hours_for(sheets)
+	for name, start, end in sheets:
+		_insert_position(user, name, start, {day: h for day, h in hours.items() if start <= day <= end})
+		_recalculate_timesheet(name, TIMESHEET_APPROVED)
+
+
+def _q3_hours(user: str, percent: float):
+	q3 = PERIODS["Q3"]
+
+	def hours_for(sheets) -> dict[date, float]:
+		"""The quarter lands on ``percent``; the hours go to the timesheets below it, by their shortfall."""
+		totals = {
+			row.name: row
+			for row in frappe.get_all(
+				"User Timesheet",
+				filters={"name": ["in", [name for name, _start, _end in sheets]]},
+				fields=["name", "utilization_hours_plan as plan", "total_hours_utilized as utilized"],
 			)
-			row.db_insert()
+		}
+		share = {
+			name: max(0.0, (totals[name].plan or 0) * percent / 100.0 - (totals[name].utilized or 0))
+			for name, _start, _end in sheets
+		}
+		missing = sum((row.plan or 0) * percent / 100.0 - (row.utilized or 0) for row in totals.values())
+		shortfall = sum(share.values())
+		if missing <= 0 or not shortfall:
+			return {}
+		working = _working_days(user, q3["start"], q3["end"])
+		hours: dict[date, float] = {}
+		for name, start, end in sheets:
+			days = [day for day in working if start <= day <= end]
+			hours.update(_spread(missing * share[name] / shortfall, days))
+		return hours
+
+	return hours_for
 
 
-def _ensure_timesheets() -> None:
+def _ensure_timesheets(state: dict) -> None:
 	q3 = PERIODS["Q3"]
 	for user, percent in Q3_UTILIZATION.items():
-		plan = planned_hours(user, q3["start"], q3["end"])
-		missing = plan * percent / 100.0 - utilized_hours([user], q3["start"], q3["end"])
-		_insert_position(user, _spread(missing, _working_days(user, q3["start"], q3["end"])))
+		_fill_timesheets(state, user, q3["start"], q3["end"], _q3_hours(user, percent))
 	for user, per_day in OCTOBER_HOURS.items():
-		_insert_position(user, {getdate(day): per_day for day in OCTOBER_DAYS})
+		_fill_timesheets(
+			state,
+			user,
+			*OCTOBER_WEEK,
+			lambda _sheets, per_day=per_day: {getdate(day): per_day for day in OCTOBER_DAYS},
+		)
+
+
+def _restore_timesheets(state: dict) -> None:
+	for name in state.get("timesheets", []):
+		if frappe.db.exists("User Timesheet", name):
+			frappe.delete_doc("User Timesheet", name, ignore_permissions=True, force=True)
+	for saved in state.get("timesheets_touched", []):
+		values = {field: saved.get(field) for field in TIMESHEET_FIELDS}
+		if frappe.db.exists("User Timesheet", saved["name"]):
+			frappe.db.set_value("User Timesheet", saved["name"], values, update_modified=False)
 
 
 # ---------------------------------------------------------------- templates
-
-
-def _template_item(key, subject, **values):
-	item = {"item_key": key, "subject": subject, "goal_code": key, "weight": 1, "progress_method": "Auto"}
-	item.update(values)
-	return item
-
-
-def _utilization_item(key, subject, parent, scale_spec, **values):
-	return _template_item(
-		key,
-		subject,
-		parent_key=parent,
-		metric_type="Percent",
-		unit="%",
-		baseline=0,
-		target=100,
-		metric_source="Provider",
-		metric_provider="timesheet_utilization",
-		scale_spec=scale_spec,
-		**values,
-	)
 
 
 MANAGER_RESULT = (
@@ -519,151 +636,19 @@ MONTHLY_RESULT = "round(params.k_prem * min(1, goal.value / 100) * 100, 2)"
 PROJECT_RESULT = "params.project_bonus_share * max(0, goal.value - goal.target)"
 
 
-def _templates() -> list[dict]:
-	return [
-		{
-			"template_name": T_MANAGER,
-			"goal_type": "KPI",
-			"default_duration_days": 92,
-			"items": [
-				_template_item(
-					"MGR",
-					"Квартальный бонус менеджера",
-					is_group=1,
-					result_label="Расчетный бонус, ₽",
-					result_formula=MANAGER_RESULT,
-				),
-				_template_item(
-					"PROFIT",
-					"Валовая прибыль ЦФО (К выпол)",
-					parent_key="MGR",
-					weight=2,
-					metric_type="Currency",
-					currency="RUB",
-					baseline=0,
-					target=0,
-					metric_source="Provider",
-					metric_provider="gl_profit",
-					scale_spec="0:0\n50:1",
-				),
-				_utilization_item(
-					"KPERS", "Утилизация команды ЦФО (К перс)", "MGR", "0:0.5\n50:0.8\n90:1\n110:1.2"
-				),
-			],
-			"template_parameters": [
-				_param("cost_center", "Link", label="ЦФО", link_doctype="Cost Center") | {"ask_on_create": 1},
-				_param("scope", "Select", "team", label="Режим утилизации", options="user\nteam")
-				| {"item_key": "KPERS"},
-			],
-		},
-		{
-			"template_name": T_SPECIALIST,
-			"goal_type": "KPI",
-			"default_duration_days": 92,
-			"items": [
-				_template_item(
-					"SPEC",
-					"Квартальный бонус специалиста",
-					is_group=1,
-					result_label="Бонус, % квартального дохода",
-					result_formula=SPECIALIST_RESULT,
-				),
-				_utilization_item(
-					"UTIL", "Коммерческая утилизация (К выпол ут)", "SPEC", "0:0\n50:0.3\n90:1"
-				),
-				_template_item(
-					"POINTS",
-					"Баллы активности (К балл)",
-					parent_key="SPEC",
-					metric_type="Numeric",
-					unit="баллы",
-					baseline=0,
-					target_source="Formula",
-					target_formula="params.points_plan",
-					metric_source="Provider",
-					metric_provider="energy_points",
-					scale_spec="0:0\n50:0.5\n80:1\n120.0001:1.2",
-				),
-				_template_item(
-					"KPERS",
-					"Персональные цели (К перс)",
-					parent_key="SPEC",
-					goal_type="Personal",
-					progress_method="Manual",
-					owner_source="Parent Goal Owner",
-					metric_type="Numeric",
-					unit="%",
-					baseline=0,
-					target=100,
-					scale_spec="50:0.5\n80:0.8\n100:1\n120:1.2",
-					description="Оценку 50/80/100/120 вводит менеджер.",
-				),
-			],
-			"template_parameters": [
-				_param("grade", "Int", label="Грейд") | {"ask_on_create": 1},
-				_param("bonus_base", "Percent", label="База бонуса, % дохода") | {"ask_on_create": 1},
-				_param("k_prem", "Percent", label="К прем") | {"ask_on_create": 1},
-				_param("points_plan", "Int", label="План баллов") | {"ask_on_create": 1},
-				_param("scope", "Select", "user", label="Режим утилизации", options="user\nteam")
-				| {"item_key": "UTIL"},
-			],
-		},
-		{
-			"template_name": T_MONTHLY,
-			"goal_type": "KPI",
-			"default_duration_days": 31,
-			"items": [
-				_utilization_item(
-					"MONTH",
-					"Ежемесячная премия: утилизация",
-					None,
-					"",
-					result_label="Премия, % месячного дохода",
-					result_formula=MONTHLY_RESULT,
-				),
-			],
-			"template_parameters": [
-				_param("k_prem", "Percent", label="К прем") | {"ask_on_create": 1},
-				_param("scope", "Select", "user", label="Режим утилизации", options="user\nteam"),
-			],
-		},
-		{
-			"template_name": T_PROJECT,
-			"goal_type": "Project Goal",
-			"default_duration_days": 92,
-			"items": [
-				_template_item(
-					"PROJECT",
-					"Проектный бонус",
-					metric_type="Currency",
-					currency="RUB",
-					baseline=0,
-					target_source="Provider",
-					target_provider="project_budget_profit",
-					metric_source="Provider",
-					metric_provider="gl_profit",
-					result_label="Фонд проектного бонуса, ₽",
-					result_formula=PROJECT_RESULT,
-				),
-			],
-			"template_parameters": [
-				_param("projects", "Link List", label="Проекты", link_doctype="Project")
-				| {"ask_on_create": 1},
-			],
-		},
-	]
+TEMPLATES = (T_MANAGER, T_SPECIALIST, T_MONTHLY, T_PROJECT)
 
 
 def _ensure_templates() -> None:
-	for spec in _templates():
-		frappe.get_doc(
-			{
-				"doctype": GOAL_TEMPLATE,
-				"is_active": 1,
-				"description": f"Демо системы мотивации ИТК ({MARKER}).",
-				**spec,
-			}
-		).insert(ignore_permissions=True)
+	"""The templates ship as fixtures of the app; re-import them if a site lost them."""
+	if all(frappe.db.exists(GOAL_TEMPLATE, name) for name in TEMPLATES):
+		return
+	from frappe.utils.fixtures import sync_fixtures
+
+	sync_fixtures("dinext_goals")
+	missing = [name for name in TEMPLATES if not frappe.db.exists(GOAL_TEMPLATE, name)]
+	if missing:
+		frappe.throw(_("Goal templates are missing: {0}").format(", ".join(missing)))
 
 
 # ---------------------------------------------------------------- goals
@@ -919,7 +904,7 @@ def setup() -> dict:
 		_post_journal()
 		_ensure_budget(state)
 		_ensure_energy_points()
-		_ensure_timesheets()
+		_ensure_timesheets(state)
 		_ensure_templates()
 		_save_state(state)
 		frappe.db.commit()
@@ -1013,15 +998,11 @@ def teardown() -> None:
 		for name in reversed(hierarchy.topological_order(goals)):
 			frappe.delete_doc(GOAL, name, ignore_permissions=True, force=True)
 
-	for template in frappe.get_all(
-		GOAL_TEMPLATE, filters={"description": ["like", f"%{MARKER}%"]}, pluck="name"
-	):
-		frappe.delete_doc(GOAL_TEMPLATE, template, ignore_permissions=True, force=True)
-
 	positions = frappe.get_all("User Timesheet Position", filters={"custom_data": MARKER}, pluck="name")
 	if positions:
 		frappe.db.delete("User Timesheet Position Details", {"parent": ["in", positions]})
 		frappe.db.delete("User Timesheet Position", {"name": ["in", positions]})
+	_restore_timesheets(state)
 
 	for log in frappe.get_all("Energy Point Log", filters={"reason": MARKER}, pluck="name"):
 		frappe.delete_doc("Energy Point Log", log, ignore_permissions=True, force=True)
