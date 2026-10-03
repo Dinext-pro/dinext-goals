@@ -41,6 +41,21 @@ fixtures = [
 			["name", "in", ["OKR", "KPI", "Project Goal", "Personal", "Strategic"]],
 		],
 	},
+	{
+		"doctype": "Goal Template",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Квартальный бонус менеджера",
+					"Квартальный бонус специалиста",
+					"Ежемесячная премия",
+					"Проектный бонус",
+				],
+			],
+		],
+	},
 ]
 
 has_permission = {

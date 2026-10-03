@@ -77,7 +77,7 @@ class TestGoalMap(GoalTestCase):
 		)
 
 	def test_open_the_map_for_a_root_goal(self):
-		data = api.get_goal_map(root=self.root.name)
+		data = api.get_goal_map(root=self.root.name, status="")
 		self.assertEqual(len(data["trees"]), 1)
 		tree = data["trees"][0]
 		self.assertEqual(tree["name"], self.root.name)
@@ -90,7 +90,7 @@ class TestGoalMap(GoalTestCase):
 		self.assertNotIn("linked", tree)
 
 	def test_linked_documents_card(self):
-		data = api.get_goal_map(root=self.root.name, show_linked=1)
+		data = api.get_goal_map(root=self.root.name, show_linked=1, status="")
 		leaf = data["trees"][0]["children"][0]["children"][0]
 		self.assertEqual(leaf["linked"]["doctype"], GOAL)
 		self.assertEqual(leaf["linked"]["count"], 4)
@@ -99,12 +99,69 @@ class TestGoalMap(GoalTestCase):
 
 	def test_cancelled_goals_are_hidden(self):
 		frappe.db.set_value(GOAL, self.other.name, "status", "Cancelled")
-		tree = api.get_goal_map(root=self.root.name)["trees"][0]
-		self.assertEqual([child["name"] for child in tree["children"]], [self.middle.name])
+		tree = api.get_goal_map(root=self.root.name, status="")["trees"][0]
+		self.assertEqual([child["name"] for child in tree["children"]], [self.middle.name, self.leaf.name])
 		roots = [row.name for row in api.get_map_roots("Map")]
 		self.assertIn(self.root.name, roots)
 		self.assertNotIn(self.middle.name, roots)
 
 	def test_map_follows_read_permission(self):
 		with as_user(OUTSIDER):
-			self.assertEqual(api.get_goal_map(root=self.root.name)["trees"][0]["name"], self.root.name)
+			self.assertEqual(
+				api.get_goal_map(root=self.root.name, status="")["trees"][0]["name"], self.root.name
+			)
+
+	def test_default_status_filter(self):
+		for goal in (self.root, self.middle):
+			activate(goal.name)
+		tree = api.get_goal_map(root=self.root.name)["trees"][0]
+		self.assertEqual([child["name"] for child in tree["children"]], [self.middle.name])
+		self.assertEqual(tree["children"][0]["children"], [])
+		self.assertEqual(tree["owner_name"], "Goals Owner")
+		self.assertIn("owner_image", tree)
+		drawn = set()
+		for root in api.get_goal_map()["trees"]:
+			drawn |= set(map_names(root))
+		self.assertIn(self.root.name, drawn)
+		self.assertFalse({self.other.name, self.leaf.name} & drawn)
+		roots = [row.name for row in api.get_map_roots("Map", status="Draft")]
+		self.assertNotIn(self.root.name, roots)
+
+	def test_filtered_out_parent_lifts_the_children(self):
+		for goal in (self.root, self.leaf):
+			activate(goal.name)
+		tree = api.get_goal_map(root=self.root.name)["trees"][0]
+		self.assertEqual([child["name"] for child in tree["children"]], [self.leaf.name, self.leaf.name])
+		self.assertEqual(len({child["id"] for child in tree["children"]}), 2)
+
+	def test_filtered_out_root(self):
+		activate(self.middle.name)
+		trees = api.get_goal_map(root=self.root.name)["trees"]
+		self.assertEqual([tree["name"] for tree in trees], [self.middle.name])
+		self.assertEqual(trees[0]["children"], [])
+		self.assertEqual(api.get_goal_map(root=self.root.name, status="Closed")["trees"], [])
+
+	def test_period_filter(self):
+		q3 = make_goal(
+			"Map Q3", parents=[self.root.name], exp_start_date="2026-07-01", exp_end_date="2026-09-30"
+		)
+		q4 = make_goal(
+			"Map Q4", parents=[self.root.name], exp_start_date="2026-10-01", exp_end_date="2026-12-31"
+		)
+		names = set(
+			map_names(api.get_goal_map(root=self.root.name, status="", year=2026, month=8)["trees"][0])
+		)
+		self.assertIn(q3.name, names)
+		self.assertNotIn(q4.name, names)
+		names = set(map_names(api.get_goal_map(root=self.root.name, status="", year=2026)["trees"][0]))
+		self.assertTrue({q3.name, q4.name} <= names)
+		drawn = set()
+		for root in api.get_goal_map(status="", year=2025, goal_owner=self.root.goal_owner)["trees"]:
+			drawn |= set(map_names(root))
+		self.assertNotIn(self.root.name, drawn)
+
+
+def map_names(node: dict):
+	yield node["name"]
+	for child in node["children"]:
+		yield from map_names(child)

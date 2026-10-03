@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, getdate, nowdate
+from frappe.utils import cint, flt, get_last_day, getdate, nowdate
 
 from dinext_goals import parameters, templates
-from dinext_goals.constants import GOAL, GOAL_LOG, LOG_SOURCE_MANUAL, STATUS_CANCELLED
+from dinext_goals.constants import GOAL, GOAL_LOG, LOG_SOURCE_MANUAL, STATUS_ACTIVE, STATUS_CANCELLED
 from dinext_goals.goals import hierarchy, lifecycle
 from dinext_goals.progress import engine, planning, sources
 from dinext_goals.providers import list_providers
@@ -112,16 +113,20 @@ def get_children(goal: str) -> list[dict]:
 
 def _attach_owner_names(rows: list) -> None:
 	users = list({row.goal_owner for row in rows if row.goal_owner})
-	names = (
+	owners = (
 		{
-			row.name: row.full_name or row.name
-			for row in frappe.get_all("User", filters={"name": ["in", users]}, fields=["name", "full_name"])
+			row.name: row
+			for row in frappe.get_all(
+				"User", filters={"name": ["in", users]}, fields=["name", "full_name", "user_image"]
+			)
 		}
 		if users
 		else {}
 	)
 	for row in rows:
-		row.owner_name = names.get(row.goal_owner, row.goal_owner)
+		owner = owners.get(row.goal_owner)
+		row.owner_name = (owner.full_name or owner.name) if owner else row.goal_owner
+		row.owner_image = owner.user_image if owner else None
 
 
 @frappe.whitelist()
@@ -234,6 +239,28 @@ def _linked_card(row) -> dict | None:
 	return card
 
 
+def map_period(year: int | str | None, month: int | str | None) -> tuple[date, date] | None:
+	if not cint(year):
+		return None
+	year = cint(year)
+	if cint(month):
+		start = date(year, cint(month), 1)
+		return start, getdate(get_last_day(start))
+	return date(year, 1, 1), date(year, 12, 31)
+
+
+def _matches(row, status: str | None, period: tuple[date, date] | None, include_cancelled) -> bool:
+	if status and row.status != status:
+		return False
+	if not status and not cint(include_cancelled) and row.status == STATUS_CANCELLED:
+		return False
+	if period:
+		start, end = row.exp_start_date, row.exp_end_date
+		if (start and getdate(start) > period[1]) or (end and getdate(end) < period[0]):
+			return False
+	return True
+
+
 @frappe.whitelist()
 def get_goal_map(
 	root: str | None = None,
@@ -242,30 +269,42 @@ def get_goal_map(
 	company: str | None = None,
 	show_linked: int | str = 0,
 	include_cancelled: int | str = 0,
+	status: str | None = STATUS_ACTIVE,
+	year: int | str | None = None,
+	month: int | str | None = None,
 ) -> dict:
+	"""Goal trees for the map. Status and period apply to every card, the explicit root included;
+	a card whose parent is filtered out hangs under its nearest drawn ancestor or becomes a tree.
+	Type, owner and company pick the trees."""
 	frappe.has_permission(GOAL, "read", throw=True)
+	period = map_period(year, month)
 	if root:
 		_goal_for(root)
 		seeds = [root]
 	else:
 		filters: dict[str, Any] = {}
+		if status:
+			filters["status"] = status
+		elif not cint(include_cancelled):
+			filters["status"] = ["!=", STATUS_CANCELLED]
 		if goal_type:
 			filters["goal_type"] = goal_type
 		if goal_owner:
 			filters["goal_owner"] = goal_owner
 		if company:
 			filters["company"] = company
-		if not cint(include_cancelled):
-			filters["status"] = ["!=", STATUS_CANCELLED]
-		candidates = frappe.get_all(
-			GOAL, filters=filters, pluck="name", order_by="exp_start_date desc, subject asc"
-		)
+		candidates = [
+			row.name
+			for row in frappe.get_all(
+				GOAL,
+				filters=filters,
+				fields=["name", "status", "exp_start_date", "exp_end_date"],
+				order_by="exp_start_date desc, subject asc",
+			)
+			if _matches(row, status, period, include_cancelled)
+		]
 		candidate_set = set(candidates)
-		if filters:
-			seeds = [name for name in candidates if not set(hierarchy.get_ancestors(name)) & candidate_set]
-		else:
-			parents = hierarchy.get_parents_of(candidates)
-			seeds = [name for name in candidates if not parents[name]]
+		seeds = [name for name in candidates if not set(hierarchy.get_ancestors(name)) & candidate_set]
 
 	members: list[str] = []
 	for seed in seeds:
@@ -282,6 +321,18 @@ def get_goal_map(
 	parents = hierarchy.get_parents_of(members)
 	show_linked = cint(show_linked)
 
+	def drawn_children(name: str, path: tuple[str, ...]) -> list[dict]:
+		result = []
+		for child in children.get(name, []):
+			row = rows.get(child)
+			if not row or child in path:
+				continue
+			if _matches(row, status, period, include_cancelled):
+				result.append(build(child, path))
+			else:
+				result.extend(drawn_children(child, (*path, child)))
+		return result
+
 	def build(name: str, path: tuple[str, ...]) -> dict | None:
 		row = rows.get(name)
 		if not row or name in path:
@@ -291,26 +342,29 @@ def get_goal_map(
 			{
 				"id": "/".join((*path, name)),
 				"owner_name": row.owner_name,
+				"owner_image": row.owner_image,
 				"shared": len(parents.get(name, [])) > 1,
-				"children": [],
+				"children": drawn_children(name, (*path, name)),
 			}
 		)
-		for child in children.get(name, []):
-			if not cint(include_cancelled) and rows.get(child) and rows[child].status == STATUS_CANCELLED:
-				continue
-			built = build(child, (*path, name))
-			if built:
-				node["children"].append(built)
 		if show_linked:
 			node["linked"] = _linked_card(row)
 		return node
 
-	trees = [tree for tree in (build(seed, ()) for seed in seeds) if tree]
+	trees = []
+	for seed in seeds:
+		row = rows.get(seed)
+		if not row:
+			continue
+		if _matches(row, status, period, include_cancelled):
+			trees.append(build(seed, ()))
+		else:
+			trees.extend(drawn_children(seed, (seed,)))
 	return {"trees": trees, "truncated": len(members) >= MAP_NODE_LIMIT}
 
 
 @frappe.whitelist()
-def get_map_roots(txt: str | None = None) -> list[dict]:
+def get_map_roots(txt: str | None = None, status: str | None = None) -> list[dict]:
 	frappe.has_permission(GOAL, "read", throw=True)
 	names = frappe.get_all(GOAL, filters={"status": ["!=", STATUS_CANCELLED]}, pluck="name")
 	parents = hierarchy.get_parents_of(names)
@@ -318,6 +372,8 @@ def get_map_roots(txt: str | None = None) -> list[dict]:
 	if not roots:
 		return []
 	filters: dict[str, Any] = {"name": ["in", roots]}
+	if status:
+		filters["status"] = status
 	if txt:
 		filters["subject"] = ["like", f"%{txt}%"]
 	return frappe.get_all(

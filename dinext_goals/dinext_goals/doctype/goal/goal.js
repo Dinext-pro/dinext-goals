@@ -185,19 +185,67 @@
 		if (frm.is_new() || !frm.dashboard) {
 			return;
 		}
+		if (frm.doc.is_overdue) {
+			frm.dashboard.set_headline(
+				`<div class="dinext-goal-headline"><span class="dinext-goal-rag-dot dinext-goal-rag-red"></span><b class="text-danger">${__("Overdue")}</b></div>`
+			);
+		} else if (frm.dashboard.headline && frm.dashboard.headline.find(".dinext-goal-headline").length) {
+			frm.dashboard.clear_headline();
+		}
+	}
+
+	function fmt_compact(value) {
+		const v = Number(value || 0);
+		const abs = Math.abs(v);
+		if (abs >= 1e6) {
+			return { text: format_number(v / 1e6, null, abs >= 1e8 ? 0 : 1), suffix: __("M", null, "Number suffix") };
+		}
+		if (abs >= 1e4) {
+			return { text: format_number(v / 1e3, null, abs >= 1e5 ? 0 : 1), suffix: __("K", null, "Number suffix") };
+		}
+		return { text: format_number(v, null, Number.isInteger(v) ? 0 : 2), suffix: "" };
+	}
+
+	function kpi_tile(key, label, value, { unit = "", rag = "", hint = "", percent = false } = {}) {
+		const compact = percent ? { text: format_number(value || 0, null, 1), suffix: "" } : fmt_compact(value);
+		const exact = percent ? `${format_number(value || 0, null, 2)}%` : format_number(value || 0, null, 2);
+		const tail = [compact.suffix, percent ? "%" : unit].filter(Boolean).join(" ");
+		return `
+			<div class="dinext-goal-kpi-card ${rag ? rag_class(rag) + " is-rag" : ""}" data-kpi="${key}" title="${esc(exact + (unit ? " " + unit : ""))}">
+				<div class="dinext-goal-kpi-label">${esc(label)}</div>
+				<div class="dinext-goal-kpi-value">${esc(compact.text)}${tail ? `<span class="dinext-goal-kpi-unit">${esc(tail)}</span>` : ""}</div>
+				${hint ? `<div class="dinext-goal-kpi-hint">${hint}</div>` : ""}
+			</div>`;
+	}
+
+	function kpi_html(frm) {
 		const d = frm.doc;
-		const parts = [
-			`<span class="dinext-goal-rag-dot ${rag_class(d.rag_status)}"></span>`,
-			`<b>${esc(__(d.rag_status || "No RAG status"))}</b>`,
-			__("Progress {0}% of planned {1}%", [fmt_number(d.progress), fmt_number(d.planned_progress)]),
-		];
-		if (d.result_formula && d.result_label) {
-			parts.push(`${esc(d.result_label)}: <b>${fmt_number(d.result_value)}</b>`);
+		const tiles = [];
+		const progress_hint = __("planned {0}%", [format_number(d.planned_progress || 0, null, 1)]);
+		const has_metric = !d.is_group && d.metric_type && d.metric_type !== "Boolean";
+		if (has_metric) {
+			const unit = d.unit || (d.metric_type === "Currency" ? d.currency || "" : "");
+			tiles.push(kpi_tile("actual", __("Actual"), d.current_value, { unit, rag: d.rag_status }));
+			tiles.push(kpi_tile("target", __("Target"), d.target, { unit }));
+			tiles.push(kpi_tile("achievement", __("Achievement"), d.achievement_percent, { percent: true }));
+			tiles.push(kpi_tile("progress", __("Progress"), d.progress, { percent: true, hint: esc(progress_hint) }));
+		} else {
+			tiles.push(kpi_tile("progress", __("Progress"), d.progress, { percent: true, rag: d.rag_status }));
+			tiles.push(kpi_tile("planned", __("Planned Progress"), d.planned_progress, { percent: true }));
+			tiles.push(kpi_tile("deviation", __("Deviation"), d.deviation, { percent: true }));
 		}
-		if (d.is_overdue) {
-			parts.push(`<span class="text-danger">${__("Overdue")}</span>`);
+		if (has_metric && (d.scale || []).length) {
+			tiles.push(kpi_tile("coefficient", __("Coefficient"), d.coefficient));
 		}
-		frm.dashboard.set_headline(`<div class="dinext-goal-headline">${parts.join(" · ")}</div>`);
+		if (d.result_formula) {
+			tiles.push(kpi_tile("result", d.result_label || __("Result Value"), d.result_value));
+		}
+		return `<div class="dinext-goal-kpi-grid" data-testid="goal-kpis">${tiles.join("")}</div>`;
+	}
+
+	function render_kpis(frm, wrapper) {
+		wrapper.find(".dinext-goal-kpi-grid").remove();
+		wrapper.prepend(kpi_html(frm));
 	}
 
 	function render_children(frm) {
@@ -304,6 +352,7 @@
 			section.append(wrapper);
 			frm.dashboard.show();
 		}
+		render_kpis(frm, wrapper);
 		frappe.require([ECHARTS_ASSET], () => {
 			frappe.xcall("dinext_goals.api.get_goal_trend", { goal: frm.doc.name }).then((data) => {
 				wrapper.data("trend", data);

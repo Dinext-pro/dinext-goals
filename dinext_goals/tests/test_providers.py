@@ -4,7 +4,12 @@ from dinext_goals.providers import get_provider, get_registry, list_providers
 from dinext_goals.providers.energy_points import energy_points
 from dinext_goals.providers.gl_profit import gl_profit
 from dinext_goals.providers.project_budget import planned_project_profit
-from dinext_goals.providers.timesheet_utilization import planned_hours, team_users, utilized_hours
+from dinext_goals.providers.timesheet_utilization import (
+	APPROVED_TIMESHEET_STATUS,
+	team_users,
+	timesheet_totals,
+	timesheet_utilization,
+)
 from dinext_goals.tests.utils import OWNER, OWNER_B, GoalTestCase, insert_raw, make_goal, make_group, param
 
 COMPANY = "Dinext"
@@ -14,7 +19,6 @@ EXPENSE = "Salary - D"
 CASH = "Cash - D"
 PROJECT = "_GT-PRJ-1"
 OTHER_PROJECT = "_GT-PRJ-2"
-APPROVED = "Согласовано"
 
 
 def cost_center(name, parent, is_group=0):
@@ -34,12 +38,21 @@ def cost_center(name, parent, is_group=0):
 
 
 def gl(
-	account, *, debit=0, credit=0, cost_center=None, project=None, posting_date="2026-03-15", is_cancelled=0
+	account,
+	*,
+	debit=0,
+	credit=0,
+	cost_center=None,
+	project=None,
+	posting_date="2026-03-15",
+	is_cancelled=0,
+	company=COMPANY,
+	**values,
 ):
 	insert_raw(
 		"GL Entry",
 		{
-			"company": COMPANY,
+			"company": company,
 			"account": account,
 			"debit": debit,
 			"credit": credit,
@@ -51,8 +64,28 @@ def gl(
 			"is_cancelled": is_cancelled,
 			"voucher_type": "Journal Entry",
 			"voucher_no": "_GT-JV",
+			"is_opening": "No",
+			**values,
 		},
 	)
+
+
+def journal(cost_center, amount, posting_date):
+	doc = frappe.get_doc(
+		{
+			"doctype": "Journal Entry",
+			"company": COMPANY,
+			"posting_date": posting_date,
+			"user_remark": "_GT",
+			"accounts": [
+				{"account": CASH, "debit_in_account_currency": amount, "cost_center": cost_center},
+				{"account": INCOME, "credit_in_account_currency": amount, "cost_center": cost_center},
+			],
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	doc.submit()
+	return doc
 
 
 class TestRegistry(GoalTestCase):
@@ -103,6 +136,43 @@ class TestGLProfit(GoalTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			gl_profit(date_from="2026-03-01", date_to="2026-03-31")
 
+	def test_closing_opening_and_other_books_are_excluded(self):
+		gl(
+			INCOME,
+			debit=740,
+			cost_center=self.child,
+			voucher_type="Period Closing Voucher",
+			voucher_no="_GT-PCV",
+		)
+		gl(INCOME, credit=10_000, cost_center=self.child, is_opening="Yes")
+		book = insert_raw("Finance Book", {"finance_book_name": "_GT Book"}, name="_GT Book")
+		gl(INCOME, credit=20_000, cost_center=self.child, finance_book=book.name)
+		self.assertEqual(gl_profit(date_from="2026-03-01", date_to="2026-03-31", cost_center=self.group), 740)
+		self.assertEqual(
+			gl_profit(date_from="2026-03-01", date_to="2026-03-31", cost_center=self.group, company=COMPANY),
+			740,
+		)
+
+	def test_different_currencies_need_a_company(self):
+		other = frappe.get_all(
+			"Company",
+			filters={
+				"name": ["!=", COMPANY],
+				"default_currency": ["!=", frappe.db.get_value("Company", COMPANY, "default_currency")],
+			},
+			pluck="name",
+			limit=1,
+		)
+		if not other:
+			self.skipTest("no company with another currency")
+		gl(INCOME, credit=100, cost_center=self.child, company=other[0])
+		with self.assertRaises(frappe.ValidationError):
+			gl_profit(date_from="2026-03-01", date_to="2026-03-31", cost_center=self.group)
+		self.assertEqual(
+			gl_profit(date_from="2026-03-01", date_to="2026-03-31", cost_center=self.group, company=COMPANY),
+			740,
+		)
+
 	def test_goal_with_inherited_cost_center(self):
 		root = make_group(
 			"Root", params=[param("cost_center", "Link", self.group, link_doctype="Cost Center")]
@@ -122,6 +192,36 @@ class TestGLProfit(GoalTestCase):
 		self.assertEqual(goal.achievement_percent, 74)
 
 
+class TestGLProfitDocuments(GoalTestCase):
+	"""Submitted Journal Entries: cancellation and reversal through ERPNext itself."""
+
+	def setUp(self):
+		super().setUp()
+		self.center = cost_center("_GT Ledger", ROOT_CC)
+
+	def profit(self, date_from="2026-03-01", date_to="2026-03-31"):
+		return gl_profit(date_from=date_from, date_to=date_to, cost_center=self.center, company=COMPANY)
+
+	def test_cancelled_journal_entry(self):
+		journal(self.center, 100, "2026-03-10")
+		journal(self.center, 50, "2026-03-11").cancel()
+		self.assertEqual(self.profit(), 100)
+
+	def test_reversal_nets_by_posting_date(self):
+		from erpnext.accounts.doctype.journal_entry.journal_entry import make_reverse_journal_entry
+
+		journal(self.center, 100, "2026-03-10")
+		for source_date, reversal_date in (("2026-03-12", "2026-03-20"), ("2026-03-25", "2026-04-05")):
+			source = journal(self.center, 30, source_date)
+			reversal = make_reverse_journal_entry(source.name)
+			reversal.posting_date = reversal_date
+			reversal.insert(ignore_permissions=True)
+			reversal.submit()
+		self.assertEqual(self.profit(), 130)
+		self.assertEqual(self.profit("2026-04-01", "2026-04-30"), -30)
+		self.assertEqual(self.profit("2026-03-01", "2026-04-30"), 100)
+
+
 class TestProjectBudget(GoalTestCase):
 	def setUp(self):
 		super().setUp()
@@ -133,16 +233,24 @@ class TestProjectBudget(GoalTestCase):
 				children={
 					"project_budget_amount": [
 						{"pba_year": 2026, "pba_month": month, "pba_plan": monthly}
-						for month in (8, 9, 10, 11)
+						for month in (6, 7, 8, 9, 10)
 					]
+					+ [{"pba_year": 2025, "pba_month": 7, "pba_plan": monthly}]
 				},
 			)
 
 	def test_planned_profit(self):
-		self.assertEqual(planned_project_profit([PROJECT]), 600_000)
+		self.assertEqual(planned_project_profit([PROJECT]), 900_000)
 		self.assertEqual(planned_project_profit([OTHER_PROJECT]), 0)
 		with self.assertRaises(frappe.ValidationError):
 			planned_project_profit([])
+
+	def test_months_overlapping_the_period(self):
+		self.assertEqual(planned_project_profit([PROJECT], "2026-07-01", "2026-09-30"), 450_000)
+		self.assertEqual(planned_project_profit([PROJECT], "2026-07-31", "2026-08-01"), 300_000)
+		self.assertEqual(planned_project_profit([PROJECT], "2025-12-01", "2026-06-15"), 150_000)
+		self.assertEqual(planned_project_profit([PROJECT], "2026-11-01", "2026-12-31"), 0)
+		self.assertEqual(planned_project_profit([PROJECT], "2026-08-01", "2026-07-01"), 0)
 
 	def test_target_from_the_project_budget(self):
 		goal = make_goal(
@@ -155,103 +263,55 @@ class TestProjectBudget(GoalTestCase):
 			progress_method="Auto",
 			metric_source="Provider",
 			metric_provider="gl_profit",
+			exp_start_date="2026-07-01",
+			exp_end_date="2026-09-30",
 		)
-		self.assertEqual(goal.target, 600_000)
+		self.assertEqual(goal.target, 450_000)
 
 
 class TestTimesheetUtilization(GoalTestCase):
-	"""2026-03-02..10: 7-9 off, 5 a shortened 7h day, 2 a 3h absence, 6 a full leave, 10 an «Отгул»."""
+	"""Values come from the stored totals of User Timesheet; the provider does not plan hours."""
 
 	def setUp(self):
 		super().setUp()
-		holidays = insert_raw(
-			"Holiday List",
-			{"holiday_list_name": "_GT Holidays", "from_date": "2026-01-01", "to_date": "2026-12-31"},
-			name="_GT Holidays",
-			children={
-				"holidays": [
-					{"holiday_date": d, "description": "off"}
-					for d in ("2026-03-07", "2026-03-08", "2026-03-09")
-				]
-			},
-		)
-		hours = insert_raw(
-			"Working Hours On Date",
-			{"hod_from_date": "2026-01-01", "hod_to_date": "2026-12-31"},
-			name="_GT Short Days",
-			children={"hod_working_hours_table": [{"wht_date": "2026-03-05", "wht_hours": 7}]},
-		)
-		template = insert_raw(
-			"Timesheet Template",
-			{"ttsubject": "_GT Template", "hours_on_date": 8, "tt_working_hours_on_date": hours.name},
-			name="_GT Template",
-		)
 		self.group = cost_center("_GT Team", ROOT_CC, is_group=1)
 		self.team_cc = cost_center("_GT Team A", self.group)
 		self.other_cc = cost_center("_GT Team B", ROOT_CC)
-		self.worker = self._worker(
-			OWNER,
-			holidays.name,
-			template.name,
-			utilization=[("2026-01-01", 50), ("2026-03-04", 100)],
-			centers=[("2026-01-01", self.team_cc)],
-		)
-		self._worker(
-			OWNER_B,
-			holidays.name,
-			template.name,
-			utilization=[("2026-01-01", 100)],
-			centers=[("2026-01-01", self.team_cc), ("2026-02-01", self.other_cc)],
-		)
-		for start, end, kind, status, from_hours in (
-			("2026-03-02", "2026-03-02", "Отпуск", APPROVED, 3),
-			("2026-03-03", "2026-03-03", "Отпуск", "На согласовании", 0),
-			("2026-03-06", "2026-03-06", "Отпуск", APPROVED, 0),
-			("2026-03-10", "2026-03-10", "Отгул", APPROVED, 0),
+		self._worker(OWNER, centers=[("2026-01-01", self.team_cc)])
+		self._worker(OWNER_B, centers=[("2026-01-01", self.team_cc), ("2026-02-01", self.other_cc)])
+		for user, start, end, status, utilized, plan in (
+			(OWNER, "2026-03-02", "2026-03-08", APPROVED_TIMESHEET_STATUS, 10, 40),
+			(OWNER, "2026-03-30", "2026-03-31", APPROVED_TIMESHEET_STATUS, 30, 20),
+			(OWNER, "2026-03-09", "2026-03-15", "На согласовании", 40, 40),
+			(OWNER, "2026-04-01", "2026-04-05", APPROVED_TIMESHEET_STATUS, 1, 100),
+			(OWNER, "2026-02-23", "2026-03-01", APPROVED_TIMESHEET_STATUS, 1, 100),
+			(OWNER_B, "2026-03-02", "2026-03-08", APPROVED_TIMESHEET_STATUS, 40, 40),
 		):
 			insert_raw(
-				"Application For Leave",
+				"User Timesheet",
 				{
-					"lauser": OWNER,
-					"alworker": self.worker,
-					"status": status,
-					"alfrom_date": start,
-					"alto_date": end,
-					"alfrom_hours": from_hours,
-					"altype_of_leave": kind,
+					"timesheet_from": user,
+					"ts_valid_from": start,
+					"ts_valid_for": end,
+					"ut_status": status,
+					"total_hours_utilized": utilized,
+					"utilization_hours_plan": plan,
 				},
-				name=f"_GT {start} {kind} {status}",
+				name=f"_GT {user} {start} {end}",
 			)
-		self._position(OWNER, APPROVED, {"2026-03-02": 4, "2026-03-05": 6, "2026-03-11": 5})
-		self._position(OWNER, "На согласовании", {"2026-03-04": 10})
 
-	def _worker(self, user, holiday_list, template, *, utilization, centers):
+	def _worker(self, user, *, centers):
 		return insert_raw(
 			"Worker",
-			{
-				"wuser": user,
-				"wholiday_list": holiday_list,
-				"wtimesheet_template": template,
-				"wvalid_from": "2026-01-01",
-			},
-			children={
-				"utilization": [{"util_valid_from": d, "utilization": v} for d, v in utilization],
-				"cost_center_table": [{"cct_valid_from": d, "cct_cost_center": c} for d, c in centers],
-			},
+			{"wuser": user, "wvalid_from": "2026-01-01"},
+			children={"cost_center_table": [{"cct_valid_from": d, "cct_cost_center": c} for d, c in centers]},
 		).name
 
-	def _position(self, user, status, hours):
-		insert_raw(
-			"User Timesheet Position",
-			{"user": user, "status": status, "workflow_state": status, "custom_data": "_GT"},
-			children={"table": [{"date": d, "hours": h, "utilized_hours": h} for d, h in hours.items()]},
-		)
-
-	def test_utilization_plan_with_a_shortened_day(self):
-		# 2.5 (5h at 50%) + 4 (8h at 50%) + 8 + 7 (shortened) + 0 (leave) + 8 («Отгул» is not an absence)
-		self.assertEqual(planned_hours(OWNER, "2026-03-02", "2026-03-10"), 29.5)
-		self.assertEqual(planned_hours(OWNER, "2026-03-07", "2026-03-09"), 0)
-		self.assertEqual(utilized_hours([OWNER], "2026-03-02", "2026-03-10"), 10)
+	def test_ratio_of_sums_over_approved_timesheets(self):
+		self.assertEqual(timesheet_totals([OWNER], "2026-03-01", "2026-03-31"), (40, 60))
+		self.assertAlmostEqual(timesheet_utilization([OWNER], "2026-03-01", "2026-03-31"), 40 / 60 * 100)
+		self.assertEqual(timesheet_utilization([OWNER], "2026-05-01", "2026-05-31"), 0)
+		self.assertEqual(timesheet_utilization([], "2026-03-01", "2026-03-31"), 0)
 
 	def test_team_follows_the_latest_cost_center(self):
 		self.assertEqual(team_users(self.group, "2026-03-10"), [OWNER])
@@ -264,10 +324,10 @@ class TestTimesheetUtilization(GoalTestCase):
 			progress_method="Auto",
 			metric_source="Provider",
 			metric_provider="timesheet_utilization",
-			exp_start_date="2026-03-02",
-			exp_end_date="2026-03-10",
+			exp_start_date="2026-03-01",
+			exp_end_date="2026-03-31",
 		)
-		self.assertAlmostEqual(goal.current_value, 10 / 29.5 * 100)
+		self.assertAlmostEqual(goal.current_value, 40 / 60 * 100)
 		team = make_goal(
 			"Team utilization",
 			owner=OWNER_B,
@@ -279,10 +339,10 @@ class TestTimesheetUtilization(GoalTestCase):
 			progress_method="Auto",
 			metric_source="Provider",
 			metric_provider="timesheet_utilization",
-			exp_start_date="2026-03-02",
-			exp_end_date="2026-03-10",
+			exp_start_date="2026-03-01",
+			exp_end_date="2026-03-31",
 		)
-		self.assertAlmostEqual(team.current_value, 10 / 29.5 * 100)
+		self.assertAlmostEqual(team.current_value, 40 / 60 * 100)
 
 
 class TestEnergyPoints(GoalTestCase):

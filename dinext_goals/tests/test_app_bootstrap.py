@@ -53,6 +53,35 @@ class TestAppBootstrap(FrappeTestCase):
 		for field in ("progress", "current_value", "result_value", "approver_users", "status"):
 			self.assertIn(field, excluded["Goal"])
 
+	def test_goal_template_fixtures(self):
+		from dinext_goals.demo import motivation_itk as demo
+
+		expected = {
+			demo.T_MANAGER: ({"MGR", "PROFIT", "KPERS"}, {"cost_center"}, demo.MANAGER_RESULT),
+			demo.T_SPECIALIST: (
+				{"SPEC", "UTIL", "POINTS", "KPERS"},
+				{"grade", "bonus_base", "k_prem", "points_plan"},
+				demo.SPECIALIST_RESULT,
+			),
+			demo.T_MONTHLY: ({"MONTH"}, {"k_prem"}, demo.MONTHLY_RESULT),
+			demo.T_PROJECT: ({"PROJECT"}, {"projects"}, demo.PROJECT_RESULT),
+		}
+		fixture_filter = next(
+			f
+			for f in frappe.get_hooks("fixtures", app_name="dinext_goals")
+			if isinstance(f, dict) and f["doctype"] == "Goal Template"
+		)
+		self.assertEqual(set(fixture_filter["filters"][0][2]), set(expected))
+		for name, (items, asked, formula) in expected.items():
+			template = frappe.get_doc("Goal Template", name)
+			self.assertEqual({row.item_key for row in template.items}, items, name)
+			self.assertEqual(
+				{row.code for row in template.template_parameters if row.ask_on_create}, asked, name
+			)
+			root = next(row for row in template.items if not row.parent_key)
+			self.assertEqual(root.result_formula, formula, name)
+			self.assertNotIn(demo.MARKER, template.description or "")
+
 	def test_settings_defaults(self):
 		self.assertEqual(frappe.db.get_single_value(SETTINGS, "red_threshold"), 25)
 		self.assertEqual(frappe.db.get_single_value(SETTINGS, "yellow_threshold"), 10)
