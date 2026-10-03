@@ -190,18 +190,28 @@
 	inset: 0;
 }
 
+/* Right of the toolbar stays free for the ECharts toolbox (save as image). */
 .dinext-goal-map-toolbar {
 	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
 	gap: 6px;
 	position: absolute;
-	right: 12px;
+	left: 12px;
+	right: 44px;
 	top: 12px;
 	z-index: 2;
+	pointer-events: none;
 }
 
 .dinext-goal-map-toolbar .btn {
+	pointer-events: auto;
 	background: var(--dinext-goal-map-card);
 	box-shadow: 0 1px 3px var(--dinext-goal-map-shadow);
+}
+
+.dinext-goal-map-toolbar .btn svg {
+	vertical-align: -2px;
 }
 
 .dinext-goal-map-legend {

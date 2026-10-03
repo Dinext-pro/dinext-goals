@@ -188,6 +188,12 @@ def insert_raw(doctype: str, values: dict, *, name: str | None = None, children:
 	return doc
 
 
+def make_project(name: str, company: str = "Dinext") -> str:
+	if not frappe.db.exists("Project", name):
+		insert_raw("Project", {"project_name": name, "status": "Open", "company": company}, name=name)
+	return name
+
+
 class GoalTestCase(FrappeTestCase):
 	"""Users live for the class (rolled back by FrappeTestCase); each test rolls back to a savepoint."""
 

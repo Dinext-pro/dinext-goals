@@ -74,6 +74,7 @@
   "parameters",
   "effective_parameters_section",
   "effective_parameters_html",
+  "goal_projects",
   "approver_users"
  ],
  "fields": [
@@ -258,7 +259,7 @@
    "read_only": 1
   },
   {
-   "description": "Planned minus actual progress, percentage points.",
+   "description": "Actual minus planned progress, percentage points: positive when ahead of the plan.",
    "fieldname": "deviation",
    "fieldtype": "Float",
    "label": "Deviation",
@@ -541,6 +542,15 @@
    "label": "Effective Parameters"
   },
   {
+   "description": "Projects from the own and inherited Link / Link List parameters over Project.",
+   "fieldname": "goal_projects",
+   "fieldtype": "Table MultiSelect",
+   "label": "Projects",
+   "no_copy": 1,
+   "options": "Goal Project",
+   "read_only": 1
+  },
+  {
    "fieldname": "approver_users",
    "fieldtype": "Small Text",
    "hidden": 1,
@@ -555,7 +565,7 @@
    "link_fieldname": "goal"
   }
  ],
- "modified": "2026-10-02 04:00:00.000000",
+ "modified": "2026-10-03 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Dinext Goals",
  "name": "Goal",

@@ -4,7 +4,17 @@ import frappe
 
 from dinext_goals import api, tasks
 from dinext_goals.constants import GOAL, GOAL_LOG, SETTINGS
-from dinext_goals.tests.utils import OUTSIDER, OWNER, GoalTestCase, activate, as_user, make_goal, make_group
+from dinext_goals.tests.utils import (
+	OUTSIDER,
+	OWNER,
+	GoalTestCase,
+	activate,
+	as_user,
+	make_goal,
+	make_group,
+	make_project,
+	param,
+)
 
 
 class TestRecalculateApi(GoalTestCase):
@@ -148,17 +158,62 @@ class TestGoalMap(GoalTestCase):
 		q4 = make_goal(
 			"Map Q4", parents=[self.root.name], exp_start_date="2026-10-01", exp_end_date="2026-12-31"
 		)
-		names = set(
-			map_names(api.get_goal_map(root=self.root.name, status="", year=2026, month=8)["trees"][0])
-		)
+
+		def drawn(**filters):
+			names = set()
+			for tree in api.get_goal_map(root=self.root.name, status="", **filters)["trees"]:
+				names |= set(map_names(tree))
+			return names
+
+		names = drawn(period_from="2026-08", period_to="2026-09")
 		self.assertIn(q3.name, names)
 		self.assertNotIn(q4.name, names)
-		names = set(map_names(api.get_goal_map(root=self.root.name, status="", year=2026)["trees"][0]))
-		self.assertTrue({q3.name, q4.name} <= names)
-		drawn = set()
-		for root in api.get_goal_map(status="", year=2025, goal_owner=self.root.goal_owner)["trees"]:
-			drawn |= set(map_names(root))
-		self.assertNotIn(self.root.name, drawn)
+		self.assertTrue({q3.name, q4.name} <= drawn(period_from="2026-01", period_to="2026-12"))
+		self.assertEqual(drawn(period_from="2026-09", period_to="2026-08"), names, "bounds are swapped")
+		names = drawn(period_from="2026-10")
+		self.assertIn(q4.name, names)
+		self.assertNotIn(q3.name, names)
+		names = drawn(period_to="2026-09")
+		self.assertIn(q3.name, names)
+		self.assertNotIn(q4.name, names)
+		self.assertEqual(drawn(period_to="2025-12"), set())
+
+	def test_several_statuses(self):
+		activate(self.middle.name)
+		frappe.db.set_value(GOAL, self.other.name, "status", "On Hold")
+		names = set(map_names(api.get_goal_map(root=self.root.name, status=["Draft", "Active"])["trees"][0]))
+		self.assertEqual(names, {self.root.name, self.middle.name, self.leaf.name})
+		names = set(map_names(api.get_goal_map(root=self.root.name, status='["On Hold"]')["trees"][0]))
+		self.assertEqual(names, {self.other.name})
+
+	def test_several_types_and_owners(self):
+		frappe.db.set_value(GOAL, self.other.name, "goal_type", "OKR")
+		frappe.db.set_value(GOAL, self.other.name, "goal_owner", OUTSIDER)
+
+		def seeds(**filters):
+			names = set()
+			for tree in api.get_goal_map(status="", **filters)["trees"]:
+				names |= set(map_names(tree))
+			return names & {self.root.name, self.middle.name, self.other.name, self.leaf.name}
+
+		self.assertEqual(seeds(goal_type=["OKR"]), {self.other.name, self.leaf.name})
+		self.assertEqual(
+			seeds(goal_type=["OKR", "KPI"]),
+			{self.root.name, self.middle.name, self.other.name, self.leaf.name},
+		)
+		self.assertEqual(seeds(goal_owner=[OUTSIDER]), {self.other.name, self.leaf.name})
+		self.assertEqual(seeds(goal_owner=json.dumps([OUTSIDER, OWNER])), seeds())
+
+	def test_project_filter(self):
+		project = make_project("_GT-MAP-PRJ")
+		group = make_group(
+			"Map project group", params=[param("projects", "Link List", [project], link_doctype="Project")]
+		)
+		child = make_goal("Map project child", parents=[group.name])
+		names = set()
+		for tree in api.get_goal_map(status="", project=project)["trees"]:
+			names |= set(map_names(tree))
+		self.assertEqual(names, {group.name, child.name})
 
 
 def map_names(node: dict):

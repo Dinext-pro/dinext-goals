@@ -137,7 +137,21 @@ def seed_goals_cypress() -> dict:
 		cost_center = frappe.get_all(
 			"Cost Center", filters={"is_group": 0}, pluck="name", order_by="name", limit=1
 		)[0]
-		root = _goal("Root", MANAGER, is_group=1)
+		root = _goal(
+			"Root",
+			MANAGER,
+			is_group=1,
+			parameters=[
+				{
+					"code": "projects",
+					"label": "Проекты",
+					"param_type": "Link List",
+					"link_doctype": "Project",
+					"value_list": project,
+					"inherit": 1,
+				}
+			],
+		)
 		middle = _goal(
 			"Middle",
 			OWNER,

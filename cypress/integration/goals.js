@@ -23,7 +23,9 @@ const formButton = (label) =>
 
 const goalMap = (win) => win.$('[data-page-route="goal-map"]')[0].goal_map;
 const mapChart = (win) => win.$(".dinext-goal-map-chart").data("dinext-chart-instance");
-const mapItems = (win, kind) => mapChart(win).getOption().series[0].data.filter((item) => item.kind === kind);
+// A cleared chart (no goals match) has no series.
+const mapItems = (win, kind) =>
+	((mapChart(win).getOption().series || [])[0] || { data: [] }).data.filter((item) => item.kind === kind);
 const mapItem = (win, kind, test) => mapItems(win, kind).find(test);
 
 // A full load turns the query into route_options; set_route from a list that is still
@@ -79,6 +81,43 @@ const overflowingCards = (win) => {
 
 const createDialog = (win) => win.frappe.ui.open_dialogs.find((dialog) => dialog.fields_dict.param__projects);
 
+const MINI = /^\{mini(_small)?_(green|yellow|red|none|link)\|[^{}|]+\}$/;
+const drawnText = (win, item) => {
+	const index = mapChart(win).getOption().series[0].data.findIndex((option) => option.id === item.id);
+	const symbol = mapChart(win).getModel().getSeriesByIndex(0).getData().getItemGraphicEl(index).childAt(0);
+	const text = symbol.getTextContent();
+	return text && !text.ignore && !text.invisible ? text.style.text : "";
+};
+
+// The model box (tree plus margin) in chart pixels and the area free of the toolbar and the legend.
+const fitBounds = (win) => {
+	const map = goalMap(win);
+	const { box } = map.model;
+	const [x0, y0] = mapChart(win).convertToPixel({ seriesId: "goals" }, [box.x0, box.y0]);
+	const [x1, y1] = mapChart(win).convertToPixel({ seriesId: "goals" }, [box.x1, box.y1]);
+	const area = map.free_area();
+	return { box: { x0, y0, x1, y1 }, free: { x0: area.left, y0: area.top, x1: area.left + area.free_w, y1: area.top + area.free_h } };
+};
+
+const mapAction = (action) => cy.get(`.dinext-goal-map-toolbar [data-action='${action}']`).click();
+
+// A chart pixel with no card, toggle or edge under it, inside the free area.
+const emptyPoint = (win) => {
+	const zr = mapChart(win).getZr();
+	const { free } = fitBounds(win);
+	for (let y = free.y0 + 10; y < free.y1; y += 10) {
+		for (let x = free.x0 + 10; x < free.x1; x += 10) {
+			if (!zr.handler.findHover(x, y).target) return [x, y];
+		}
+	}
+	return null;
+};
+
+const monthValue = (moment) => moment.format("YYYY-MM");
+
+// Other apps on the site may show permission messages on the Project form for this test user.
+const closeDialogs = () => cy.window().then((win) => win.$(".modal:visible").modal("hide"));
+
 context("goal analytics", () => {
 	before(() => {
 		signIn(MANAGER);
@@ -130,6 +169,15 @@ context("goal analytics", () => {
 		formButton("Рассчитать прогресс").click();
 		cy.contains("#alert-container", "Пересчитано целей").should("exist");
 		cy.window().its("cur_frm.doc.progress").should("eq", 30);
+		cy.get("[data-testid='goal-kpis'] .dinext-goal-kpi-card").should(($tiles) => {
+			expect([...$tiles].map((tile) => tile.dataset.kpi)).to.deep.eq(["progress", "planned", "deviation", "achievement"]);
+		});
+		cy.window().then((win) => {
+			cy.get("[data-kpi='achievement'] .dinext-goal-kpi-value").should("have.text", `${win.format_number(30, null, 1)}%`);
+		});
+		cy.get("[data-kpi='deviation'] .dinext-goal-kpi-value")
+			.invoke("text")
+			.should("match", /^[-−]/, "behind the plan");
 	});
 
 	it("Effective parameters", () => {
@@ -172,9 +220,13 @@ context("goal analytics", () => {
 			expect(cards.map((card) => card.goal)).to.have.members([seed().root, seed().middle, seed().history, seed().tasks]);
 			cards.forEach((card) => {
 				expect(card.rag, card.goal).to.match(/^(green|yellow|red)$/);
-				expect(card.label.formatter, "avatar").to.match(/^\{img_\d+\|\}/m);
-				expect(card.label.formatter, "actual value").to.include(`{v_${card.rag}|`);
+				expect(card.full, "avatar").to.match(/^\{img_\d+\|\}/m);
+				expect(card.full, "actual value").to.include(`{v_${card.rag}|`);
+				expect(card.mini, "actual value at a small zoom").to.match(MINI).and.include(`{mini`).and.include(`_${card.rag}|`);
 			});
+			const save = mapChart(win).getOption().toolbox[0].feature.saveAsImage;
+			expect(save, "save as image").to.exist;
+			expect(save.title).to.eq("Сохранить как изображение");
 			expect(mapItems(win, "toggle"), "toggles").to.have.length(2);
 			const y = (name) => mapItem(win, "goal", (card) => card.goal === name).y;
 			expect(y(seed().root), "top to bottom").to.be.lessThan(y(seed().middle));
@@ -185,7 +237,10 @@ context("goal analytics", () => {
 		cy.window().then((win) => goalMap(win).set_zoom(0.5));
 		cy.window().should((win) => expect(overflowingCards(win), "text inside cards when zoomed out").to.be.empty);
 		cy.window().then((win) => goalMap(win).set_zoom(0.3));
-		cy.window().should((win) => expect(mapChart(win).getOption().series[0].label.show, "labels below the readable zoom").to.eq(false));
+		cy.window().should((win) => {
+			mapItems(win, "goal").forEach((card) => expect(drawnText(win, card), `${card.goal} at zoom 0.3`).to.eq(card.mini));
+			expect(overflowingCards(win), "actual value inside cards").to.be.empty;
+		});
 	});
 
 	it("Map layout and filters", () => {
@@ -198,17 +253,136 @@ context("goal analytics", () => {
 			expect(win.localStorage.getItem("dinext_goal_map_orient")).to.eq("LR");
 		});
 		setMapFilter("orient", "TB");
-		setMapFilter("status", "Draft");
+		cy.window().should((win) => expect(goalMap(win).get_filters().status).to.deep.eq(["Active"]));
+		setMapFilter("status", ["Draft"]);
 		cy.get(".dinext-goal-map-empty").should("be.visible");
-		setMapFilter("status", "");
+		setMapFilter("status", ["Draft", "Active"]);
 		cy.window().should((win) => expect(mapItems(win, "goal")).to.have.length(4));
-		cy.window().then((win) => setMapFilter("year", String(win.moment().year() - 2)));
+		cy.window().then((win) => {
+			setMapFilter("period_from", monthValue(win.moment().add(4, "months")));
+		});
 		cy.get(".dinext-goal-map-empty").should("be.visible");
 		cy.window().then((win) => {
-			setMapFilter("year", String(win.moment().year()));
-			setMapFilter("month", String(win.moment().month() + 1));
+			const fields = goalMap(win).page.fields_dict;
+			return fields.period_from
+				.set_value(monthValue(win.moment()))
+				.then(() => fields.period_to.set_value(monthValue(win.moment().subtract(1, "months"))));
 		});
-		cy.window().should((win) => expect(mapItems(win, "goal")).to.have.length(4));
+		cy.window().should((win) => {
+			expect(goalMap(win).filters.period_from.get_value(), "the earlier bound follows").to.eq(monthValue(win.moment().subtract(1, "months")));
+			expect(mapItems(win, "goal")).to.have.length(4);
+		});
+		cy.get(".page-form [data-fieldname='period_from'] select option")
+			.eq(1)
+			.should("have.text", `Январь ${new Date().getFullYear() - 2}`);
+
+		// Without a root, types, owners and the project pick the trees.
+		const drawn = (win) => mapItems(win, "goal").map((card) => card.goal);
+		cy.window().then((win) => {
+			const fields = goalMap(win).page.fields_dict;
+			return fields.period_from
+				.set_value("")
+				.then(() => fields.period_to.set_value(""))
+				.then(() => fields.project.set_value(seed().project))
+				.then(() => fields.root.set_value(""));
+		});
+		cy.window().should((win) => expect(drawn(win)).to.include(seed().root));
+		setMapFilter("goal_type", ["OKR"]);
+		cy.window().should((win) => expect(drawn(win)).not.to.include(seed().root));
+		setMapFilter("goal_type", ["OKR", "KPI"]);
+		cy.window().should((win) => expect(drawn(win)).to.include(seed().root));
+		setMapFilter("goal_owner", [OWNER]);
+		cy.window().should((win) => {
+			expect(drawn(win)).not.to.include(seed().root);
+			expect(drawn(win)).to.include.members([seed().middle, seed().history]);
+		});
+		setMapFilter("goal_owner", [MANAGER, OWNER]);
+		cy.window().should((win) => expect(drawn(win)).to.include(seed().root));
+	});
+
+	it("Fit and pan the map", () => {
+		signIn(MANAGER);
+		openMap(seed().root);
+		const inside = (inner, outer) => {
+			expect(inner.x0, "left").to.be.at.least(outer.x0 - 1);
+			expect(inner.y0, "top").to.be.at.least(outer.y0 - 1);
+			expect(inner.x1, "right").to.be.at.most(outer.x1 + 1);
+			expect(inner.y1, "bottom").to.be.at.most(outer.y1 + 1);
+		};
+		cy.window().then((win) => goalMap(win).set_zoom(2));
+		mapAction("fit");
+		cy.window().should((win) => {
+			const { box, free } = fitBounds(win);
+			inside(box, free);
+			const touches = Math.abs(box.x0 - free.x0) < 1.5 || Math.abs(box.y0 - free.y0) < 1.5 || goalMap(win).zoom === 1;
+			expect(touches, "the tree fills the free area").to.eq(true);
+		});
+		mapAction("fit-width");
+		cy.window().should((win) => {
+			const { box, free } = fitBounds(win);
+			expect(box.x0, "left edge").to.be.closeTo(free.x0, 1.5);
+			expect(box.x1, "right edge").to.be.closeTo(free.x1, 1.5);
+		});
+		mapAction("fit-height");
+		cy.window().should((win) => {
+			const { box, free } = fitBounds(win);
+			expect(box.y0, "top edge").to.be.closeTo(free.y0, 1.5);
+			expect(box.y1, "bottom edge").to.be.closeTo(free.y1, 1.5);
+		});
+		cy.get(".dinext-goal-map-toolbar [data-action='fit-width']").should("have.attr", "title", "Вписать по ширине");
+		cy.get(".dinext-goal-map-toolbar [data-action='fit-height']").should("have.attr", "title", "Вписать по высоте");
+		cy.window().then((win) => {
+			const point = emptyPoint(win);
+			expect(point, "an empty point").to.exist;
+			const [x, y] = point;
+			const before = goalMap(win).current_center();
+			const zoom = goalMap(win).current_zoom();
+			cy.get(".dinext-goal-map-chart > div")
+				.first()
+				.trigger("mousedown", x, y, { button: 0, buttons: 1 })
+				.trigger("mousemove", x + 30, y + 20, { button: 0, buttons: 1 })
+				.trigger("mousemove", x + 60, y + 40, { button: 0, buttons: 1 })
+				.trigger("mouseup", x + 60, y + 40, { button: 0 });
+			cy.window().should((w) => {
+				const after = goalMap(w).current_center();
+				expect(before[0] - after[0], "pan x").to.be.closeTo(60 / zoom, 1);
+				expect(before[1] - after[1], "pan y").to.be.closeTo(40 / zoom, 1);
+			});
+		});
+	});
+
+	it("Project goals", () => {
+		signIn(MANAGER);
+		openForm("project", seed().project);
+		cy.call("frappe.client.get_list", {
+			doctype: "Goal",
+			filters: [["Goal Project", "project", "=", seed().project]],
+			fields: ["name"],
+			limit_page_length: 0,
+		}).then((res) => Cypress.env("projectGoals", String(new Set(res.body.message.map((row) => row.name)).size)));
+		cy.contains(".form-dashboard .form-link-title", "Цели")
+			.parent()
+			.find(".document-link[data-doctype='Goal'] .count")
+			.should(($count) => expect($count.text()).to.eq(Cypress.env("projectGoals")));
+		closeDialogs();
+		formButton("Карта целей").click({ force: true });
+		cy.location("pathname").should("eq", "/app/goal-map");
+		cy.window().should((win) => {
+			expect(goalMap(win).filters.project.get_value()).to.eq(seed().project);
+			expect(mapItems(win, "goal").map((card) => card.goal)).to.include(seed().root);
+		});
+		openForm("project", seed().project);
+		cy.get(".form-dashboard .document-link[data-doctype='Goal'] .count").should(($count) =>
+			expect($count.text()).to.eq(Cypress.env("projectGoals"))
+		);
+		closeDialogs();
+		cy.get(".form-dashboard .document-link[data-doctype='Goal'] .badge-link").click({ force: true });
+		cy.window().its("cur_list.doctype").should("eq", "Goal");
+		cy.window().should((win) => {
+			const filters = win.cur_list.filter_area.get().map((filter) => [filter[1], filter[3]]);
+			expect(filters).to.deep.include(["project", seed().project]);
+			expect(win.cur_list.data, "goals of the project").not.to.be.empty;
+		});
 	});
 
 	it("Collapse a branch", () => {
@@ -236,9 +410,10 @@ context("goal analytics", () => {
 			const linked = mapItems(win, "linked");
 			expect(linked).to.have.length(1);
 			expect(linked[0].card.doctype).to.eq("Task");
-			expect(linked[0].label.formatter).to.include(win.__("Task"));
-			expect(linked[0].label.formatter).to.include(`{v_none|${win.format_number(seed().task_count, null, 0)}}`);
-			expect(linked[0].label.formatter).to.include("Анализ");
+			expect(linked[0].full).to.include(win.__("Task"));
+			expect(linked[0].full).to.include(`{v_none|${win.format_number(seed().task_count, null, 0)}}`);
+			expect(linked[0].full).to.include("Анализ");
+			expect(linked[0].mini).to.match(MINI).and.include(win.format_number(seed().task_count, null, 0));
 			expect(overflowingCards(win), "text inside cards").to.be.empty;
 		});
 		clickMapItem("linked", () => true);

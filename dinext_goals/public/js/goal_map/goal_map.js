@@ -33,7 +33,17 @@ const STYLE = {
 	small: { fontSize: 11, fontWeight: 400, lineHeight: 16 },
 	link: { fontSize: 12, fontWeight: 600, lineHeight: 18 },
 	toggle: { fontSize: 18, fontWeight: 600, lineHeight: 18 },
+	mini: { fontSize: 56, fontWeight: 700, lineHeight: 64 },
+	mini_small: { fontSize: 38, fontWeight: 700, lineHeight: 46 },
 };
+const FIT_ICONS = {
+	width: '<path d="M1.5 3v10M14.5 3v10M4 8h8M6.5 5.5 4 8l2.5 2.5M9.5 5.5 12 8l-2.5 2.5"/>',
+	height: '<path d="M3 1.5h10M3 14.5h10M8 4v8M5.5 6.5 8 4l2.5 2.5M5.5 9.5 8 12l2.5-2.5"/>',
+};
+
+function fit_icon(axis) {
+	return `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FIT_ICONS[axis]}</svg>`;
+}
 
 function esc(value) {
 	return frappe.utils.escape_html(value == null ? "" : String(value));
@@ -73,6 +83,23 @@ function css_var(el, name, fallback) {
 function month_name(index) {
 	const name = new Date(2000, index, 1).toLocaleString(frappe.boot.lang || "en", { month: "long" });
 	return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function month_options() {
+	const year = new Date().getFullYear();
+	const options = [];
+	for (let y = year - 2; y <= year + 1; y++) {
+		for (let m = 0; m < 12; m++) {
+			options.push({ label: `${month_name(m)} ${y}`, value: `${y}-${String(m + 1).padStart(2, "0")}` });
+		}
+	}
+	return options;
+}
+
+function link_options(doctype, txt, filters) {
+	return frappe.db
+		.get_link_options(doctype, txt, filters)
+		.then((rows) => rows.map((row) => ({ ...row, label: __(row.value), description: row.description || "" })));
 }
 
 class TextFitter {
@@ -134,7 +161,23 @@ export class GoalMap {
 
 	make_filters() {
 		const reload = () => this.load();
-		const year = new Date().getFullYear();
+		const months = month_options();
+		// When one bound passes the other, the other bound follows it.
+		const period = (fieldname, label, other, is_start) =>
+			this.page.add_field({
+				fieldname,
+				label,
+				fieldtype: "Select",
+				options: [{ label, value: "" }].concat(months),
+				change: () => {
+					const value = this.filters[fieldname].get_value();
+					const bound = this.filters[other].get_value();
+					if (value && bound && (is_start ? bound < value : bound > value)) {
+						this.filters[other].set_value(value);
+					}
+					reload();
+				},
+			});
 		this.filters = {
 			root: this.page.add_field({
 				fieldname: "root",
@@ -146,43 +189,24 @@ export class GoalMap {
 			status: this.page.add_field({
 				fieldname: "status",
 				label: __("Status"),
-				fieldtype: "Select",
-				options: [{ label: __("All Statuses"), value: "" }].concat(
-					STATUSES.map((status) => ({ label: __(status), value: status }))
-				),
-				default: "Active",
+				fieldtype: "MultiSelectList",
+				get_data: () => STATUSES.map((status) => ({ label: __(status), value: status, description: "" })),
 				change: reload,
 			}),
-			year: this.page.add_field({
-				fieldname: "year",
-				label: __("Year"),
-				fieldtype: "Select",
-				options: [{ label: __("All Years"), value: "" }].concat(
-					[year - 2, year - 1, year, year + 1].map((y) => ({ label: String(y), value: String(y) }))
-				),
-				change: reload,
-			}),
-			month: this.page.add_field({
-				fieldname: "month",
-				label: __("Month"),
-				fieldtype: "Select",
-				options: [{ label: __("All Months"), value: "" }].concat(
-					Array.from({ length: 12 }, (_, i) => ({ label: month_name(i), value: String(i + 1) }))
-				),
-				change: reload,
-			}),
+			period_from: period("period_from", __("Period From"), "period_to", true),
+			period_to: period("period_to", __("Period To"), "period_from", false),
 			goal_type: this.page.add_field({
 				fieldname: "goal_type",
 				label: __("Goal Type"),
-				fieldtype: "Link",
-				options: "Goal Type",
+				fieldtype: "MultiSelectList",
+				get_data: (txt) => link_options("Goal Type", txt),
 				change: reload,
 			}),
 			goal_owner: this.page.add_field({
 				fieldname: "goal_owner",
 				label: __("Goal Owner"),
-				fieldtype: "Link",
-				options: "User",
+				fieldtype: "MultiSelectList",
+				get_data: (txt) => link_options("User", txt, { enabled: 1, user_type: "System User" }),
 				change: reload,
 			}),
 			company: this.page.add_field({
@@ -190,6 +214,13 @@ export class GoalMap {
 				label: __("Company"),
 				fieldtype: "Link",
 				options: "Company",
+				change: reload,
+			}),
+			project: this.page.add_field({
+				fieldname: "project",
+				label: __("Project"),
+				fieldtype: "Link",
+				options: "Project",
 				change: reload,
 			}),
 			show_linked: this.page.add_field({
@@ -217,6 +248,8 @@ export class GoalMap {
 			},
 		});
 		this.page.set_primary_action(__("Refresh"), reload, "refresh");
+		this.filters.status.set_options();
+		this.filters.status.set_value(["Active"]);
 	}
 
 	make_body() {
@@ -227,6 +260,8 @@ export class GoalMap {
 					<button class="btn btn-xs btn-default" data-action="zoom-in" title="${__("Zoom In")}">+</button>
 					<button class="btn btn-xs btn-default" data-action="zoom-out" title="${__("Zoom Out")}">&minus;</button>
 					<button class="btn btn-xs btn-default" data-action="fit">${__("Fit to Screen")}</button>
+					<button class="btn btn-xs btn-default" data-action="fit-width" title="${__("Fit to Width")}" aria-label="${__("Fit to Width")}">${fit_icon("width")}</button>
+					<button class="btn btn-xs btn-default" data-action="fit-height" title="${__("Fit to Height")}" aria-label="${__("Fit to Height")}">${fit_icon("height")}</button>
 					<button class="btn btn-xs btn-default" data-action="expand">${__("Expand All")}</button>
 					<button class="btn btn-xs btn-default" data-action="collapse">${__("Collapse All")}</button>
 				</div>
@@ -244,6 +279,8 @@ export class GoalMap {
 			if (action === "zoom-in") this.set_zoom(this.zoom * 1.25);
 			if (action === "zoom-out") this.set_zoom(this.zoom / 1.25);
 			if (action === "fit") this.fit();
+			if (action === "fit-width") this.fit("width");
+			if (action === "fit-height") this.fit("height");
 			if (action === "expand") {
 				this.collapsed.clear();
 				this.render({ fit: true });
@@ -283,10 +320,10 @@ export class GoalMap {
 	}
 
 	get_filters() {
-		const values = { status: this.filters.status.get_value() || "" };
+		const values = { status: this.filters.status.get_value() || [] };
 		Object.entries(this.filters).forEach(([key, field]) => {
 			const value = field.get_value();
-			if (value && key !== "status") values[key] = value;
+			if (key !== "status" && (Array.isArray(value) ? value.length : value)) values[key] = value;
 		});
 		return values;
 	}
@@ -518,6 +555,7 @@ export class GoalMap {
 			`{small|${progress_text}}${coefficient ? `{small_r|${coefficient}}` : ""}`,
 			bar,
 		].join("\n");
+		const mini_value = show_metric ? `${big.text}${big.suffix ? " " + big.suffix : ""}` : `${fmt(node.progress, 0)}%`;
 		return {
 			id: `card:${node.id}`,
 			kind: "goal",
@@ -535,7 +573,8 @@ export class GoalMap {
 				shadowBlur: 8,
 				shadowColor: colors.shadow,
 			},
-			label: { formatter: text },
+			full: text,
+			mini: this.mini_text(mini_value, rag),
 			tip: this.tooltip(node),
 		};
 	}
@@ -565,9 +604,16 @@ export class GoalMap {
 			symbol: "rect",
 			symbolSize: [p.w, p.h],
 			itemStyle: { color: colors.card, borderColor: colors.link, borderWidth: 1, borderType: [5, 4], shadowBlur: 4, shadowColor: colors.shadow },
-			label: { formatter: lines.join("\n") },
+			full: lines.join("\n"),
+			mini: card.restricted || card.error ? "" : this.mini_text(fmt(card.count, 0), "link"),
 			tip: esc(card.error || __(card.doctype)),
 		};
+	}
+
+	mini_text(value, rag) {
+		const f = this.fitter;
+		const style = f.width(value, STYLE.mini) <= INNER_W ? "mini" : "mini_small";
+		return `{${style}_${rag}|${f.truncate(value, INNER_W, STYLE[style])}}`;
 	}
 
 	toggle_item(id, node, x, y, colors) {
@@ -670,6 +716,11 @@ export class GoalMap {
 			toggle: s(STYLE.toggle, { align: "center", color: colors.text }),
 			gap: { width: 6 * scale, height: 1, lineHeight: 1, align: "left" },
 		};
+		RAGS.concat("link").forEach((rag) => {
+			const color = rag === "none" ? colors.text : colors[rag];
+			rich[`mini_${rag}`] = s(STYLE.mini, { color, align: "center" });
+			rich[`mini_small_${rag}`] = s(STYLE.mini_small, { color, align: "center" });
+		});
 		RAGS.forEach((rag) => {
 			rich[`v_${rag}`] = s(STYLE.value, { color: rag === "none" ? colors.text : colors[rag] });
 			rich[`dot_${rag}`] = {
@@ -713,10 +764,12 @@ export class GoalMap {
 		return rich;
 	}
 
-	// Below READABLE_ZOOM text is a few pixels high: cards keep the RAG frame and the tooltip only.
+	// Below READABLE_ZOOM the card text is a few pixels high, so cards show only the actual value in the RAG colour.
 	label_option(zoom, colors) {
+		const key = zoom >= READABLE_ZOOM ? "full" : "mini";
 		return {
-			show: zoom >= READABLE_ZOOM,
+			show: true,
+			formatter: (params) => (params.data && params.data[key]) || "",
 			position: "inside",
 			width: INNER_W * zoom,
 			fontSize: STYLE.small.fontSize * zoom,
@@ -777,6 +830,24 @@ export class GoalMap {
 					extraCssText: "max-width: 320px; white-space: normal;",
 					formatter: (params) => (params.dataType === "node" && params.data && params.data.tip) || "",
 				},
+				toolbox: {
+					show: true,
+					right: 12,
+					top: 12,
+					itemSize: 16,
+					iconStyle: { borderColor: colors.muted },
+					emphasis: { iconStyle: { borderColor: colors.text } },
+					feature: {
+						saveAsImage: {
+							title: __("Save as Image"),
+							name: this.image_name(),
+							type: "png",
+							pixelRatio: 2,
+							backgroundColor: colors.bg,
+							excludeComponents: ["toolbox", "thumbnail"],
+						},
+					},
+				},
 				thumbnail: {
 					show: true,
 					right: 12,
@@ -791,6 +862,7 @@ export class GoalMap {
 						type: "graph",
 						layout: "none",
 						roam: true,
+						roamTrigger: "global",
 						nodeScaleRatio: 1,
 						scaleLimit: { min: MIN_ZOOM, max: MAX_ZOOM },
 						...this.view_rect(model.box),
@@ -836,27 +908,49 @@ export class GoalMap {
 		this.rescale(zoom);
 	}
 
-	fit_view(model) {
-		const width = this.$chart.width() || 800;
-		const height = this.$chart.height() || 600;
-		const w = model.box.x1 - model.box.x0;
-		const h = model.box.y1 - model.box.y0;
-		const fit = clamp(Math.min(width / w, height / h), MIN_ZOOM, 1);
-		if (fit >= READABLE_ZOOM) return [fit, [(model.box.x0 + model.box.x1) / 2, (model.box.y0 + model.box.y1) / 2]];
-		const zoom = 0.7;
-		const root = model.placed.find((p) => p.node.id === this.trees[0].id);
-		const inset = 24;
-		if (this.orient === "TB") {
-			return [zoom, [root.x, model.box.y0 + (height / 2 - inset) / zoom]];
-		}
-		return [zoom, [model.box.x0 + (width / 2 - inset) / zoom, root.y]];
+	// The chart area not covered by the toolbar (top) and the legend (bottom), in chart pixels.
+	free_area() {
+		const chart = this.$chart[0].getBoundingClientRect();
+		const width = chart.width || 800;
+		const height = chart.height || 600;
+		const toolbar = this.$map.find(".dinext-goal-map-toolbar")[0].getBoundingClientRect();
+		const legend = this.$map.find(".dinext-goal-map-legend")[0].getBoundingClientRect();
+		const top = toolbar.height ? toolbar.bottom - chart.top + 8 : 12;
+		const bottom = legend.height ? chart.bottom - legend.top + 8 : 12;
+		const free_h = Math.max(height - top - bottom, height * 0.5);
+		return { width, height, left: 12, top: Math.min(top, height - free_h), free_w: Math.max(width - 24, 50), free_h };
 	}
 
-	fit() {
+	// axis "width" / "height" fills one dimension; along an axis that does not fit, the tree start is shown.
+	fit_view(model, axis = "both") {
+		const area = this.free_area();
+		const box = model.box;
+		const w = box.x1 - box.x0;
+		const h = box.y1 - box.y0;
+		const zx = area.free_w / w;
+		const zy = area.free_h / h;
+		const zoom =
+			axis === "both"
+				? clamp(Math.min(zx, zy), MIN_ZOOM, 1)
+				: clamp(axis === "width" ? zx : zy, MIN_ZOOM, MAX_ZOOM);
+		const target = (start, size, free) => (size * zoom <= free + 1 ? start + size / 2 : start + free / (2 * zoom));
+		const px = target(box.x0, w, area.free_w);
+		const py = target(box.y0, h, area.free_h);
+		const cx = area.left + area.free_w / 2;
+		const cy = area.top + area.free_h / 2;
+		return [zoom, [px + (area.width / 2 - cx) / zoom, py + (area.height / 2 - cy) / zoom]];
+	}
+
+	fit(axis) {
 		if (!this.model) return;
-		const [zoom, center] = this.fit_view(this.model);
+		const [zoom, center] = this.fit_view(this.model, axis);
 		this.chart.setOption({ series: [{ id: SERIES_ID, zoom, center }] });
 		this.rescale(zoom);
+	}
+
+	image_name() {
+		const root = this.filters.root.get_value();
+		return [__("Goal Map"), root].filter(Boolean).join(" ").replace(/[\\/:*?"<>|]+/g, "-");
 	}
 
 	update_view_rect() {

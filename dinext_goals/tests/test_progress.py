@@ -39,10 +39,11 @@ class TestProgressArithmetic(FrappeTestCase):
 		self.assertEqual(planning.planned_value(100, 50, 50), 75)
 
 	def test_rag_and_overdue(self):
-		self.assertEqual(planning.rag(5, False, 10, 25), "Green")
-		self.assertEqual(planning.rag(10.01, False, 10, 25), "Yellow")
-		self.assertEqual(planning.rag(25.01, False, 10, 25), "Red")
-		self.assertEqual(planning.rag(-50, True, 10, 25), "Red")
+		self.assertEqual(planning.rag(-5, False, 10, 25), "Green")
+		self.assertEqual(planning.rag(40, False, 10, 25), "Green")
+		self.assertEqual(planning.rag(-10.01, False, 10, 25), "Yellow")
+		self.assertEqual(planning.rag(-25.01, False, 10, 25), "Red")
+		self.assertEqual(planning.rag(50, True, 10, 25), "Red")
 		self.assertTrue(planning.is_overdue("Active", "2026-01-31", 99, "2026-02-01"))
 		self.assertFalse(planning.is_overdue("Active", "2026-01-31", 100, "2026-02-01"))
 		self.assertFalse(planning.is_overdue("Closed", "2026-01-31", 10, "2026-02-01"))
@@ -73,6 +74,12 @@ class TestProgressArithmetic(FrappeTestCase):
 		]
 		self.assertEqual(rollup.weighted_progress(children), 70)
 		self.assertIsNone(rollup.weighted_progress([{"progress": 50, "weight": 0, "status": "Active"}]))
+		children = [
+			{"achievement": 120, "weight": 0.5, "status": "Active"},
+			{"achievement": 60, "weight": 0.5, "status": "Active"},
+			{"achievement": 0, "weight": 1, "status": "Cancelled"},
+		]
+		self.assertEqual(rollup.weighted(children, "achievement"), 90)
 
 	def test_scale_boundary(self):
 		rows = steps(MANAGER_KPERS_SCALE)
@@ -111,6 +118,33 @@ class TestRecalculation(GoalTestCase):
 		make_goal("Light", parents=[group.name], weight=1, current_value=30)
 		self.assertEqual(self.reload(group.name).progress, 70)
 
+	def test_group_achievement_is_weighted(self):
+		group = make_group("Group")
+		make_goal("Over", parents=[group.name], weight=1, current_value=120)
+		make_goal("Under", parents=[group.name], weight=1, current_value=60)
+		cancelled = make_goal("Dropped", parents=[group.name], weight=1, current_value=0)
+		frappe.db.set_value(GOAL, cancelled.name, "status", "Cancelled")
+		engine.recalculate(group.name)
+		group = self.reload(group.name)
+		self.assertEqual(group.achievement_percent, 90)
+		self.assertEqual(group.progress, 80)
+
+	def test_manual_group_achievement_equals_progress(self):
+		group = make_group("Manual", progress_method="Manual", progress=40)
+		make_goal("Over", parents=[group.name], current_value=150)
+		group = self.reload(group.name)
+		self.assertEqual(group.progress, 40)
+		self.assertEqual(group.achievement_percent, 40)
+
+	def test_deviation_sign(self):
+		ahead = make_goal("Ahead", exp_start_date="2026-01-01", exp_end_date="2026-01-11", current_value=70)
+		behind = make_goal("Behind", exp_start_date="2026-01-01", exp_end_date="2026-01-11", current_value=20)
+		for goal in (ahead, behind):
+			engine.recalculate(goal.name, on_date="2026-01-06")
+		ahead, behind = self.reload(ahead.name), self.reload(behind.name)
+		self.assertEqual((ahead.deviation, ahead.rag_status), (20, "Green"))
+		self.assertEqual((behind.deviation, behind.rag_status), (-30, "Red"))
+
 	def test_recalculate_from_a_leaf(self):
 		root = make_group("Root")
 		middle = make_group("Middle", parents=[root.name])
@@ -148,7 +182,7 @@ class TestRecalculation(GoalTestCase):
 		self.assertEqual(goal.is_overdue, 1)
 		self.assertEqual(goal.rag_status, "Red")
 		self.assertEqual(goal.planned_progress, 100)
-		self.assertEqual(goal.deviation, 60)
+		self.assertEqual(goal.deviation, -60)
 
 	def test_rag_follows_settings(self):
 		goal = make_goal("Half", exp_start_date="2026-01-01", exp_end_date="2026-01-11", current_value=35)
