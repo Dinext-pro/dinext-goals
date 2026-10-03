@@ -20,7 +20,7 @@ class Goal(Document):
 		hierarchy.validate_parents(self)
 		hierarchy.validate_goal_code(self)
 		parameters.validate_parameters(self)
-		parameters.resolve_for_doc(self)
+		parameters.set_doc_projects(self, parameters.resolve_for_doc(self))
 		lifecycle.sync_status(self, before)
 		lifecycle.validate_draft_lock(self, before)
 		parameters.validate_locks(self, before)
@@ -63,11 +63,15 @@ class Goal(Document):
 		):
 			source = LOG_SOURCE_MANUAL if self.flags.manual_input_changed else LOG_SOURCE_AUTO
 			engine.write_log(self.name, self, source)
-		if self.flags.skip_related_recalculation:
-			return
 		include_descendants = before is not None and parameters.signature_of(
 			before
 		) != parameters.signature_of(self)
+		if include_descendants or (
+			before is not None and hierarchy.doc_parent_names(before) != hierarchy.doc_parent_names(self)
+		):
+			parameters.sync_goal_projects(hierarchy.get_descendants(self.name))
+		if self.flags.skip_related_recalculation:
+			return
 		engine.recalculate_related(self, include_descendants=include_descendants)
 		if before is not None:
 			removed = set(hierarchy.doc_parent_names(before)) - set(hierarchy.doc_parent_names(self))

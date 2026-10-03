@@ -28,6 +28,9 @@ ROW_FIELDS = (
 	"description",
 )
 PARAM_REF_PREFIX = "=param:"
+PROJECT = "Project"
+GOAL_PROJECT = "Goal Project"
+PROJECTS_FIELD = "goal_projects"
 
 
 def value_field(param_type: str) -> str:
@@ -310,6 +313,44 @@ def _assert_no_locked_receivers(goal: str, codes: list[str]) -> None:
 
 def signature_of(doc) -> tuple:
 	return tuple(sorted((row.code, _signature(row)) for row in doc.get("parameters") or []))
+
+
+def projects_of(resolved: dict[str, frappe._dict]) -> list[str]:
+	"""Existing projects named by effective Link / Link List parameters over Project."""
+	names: set[str] = set()
+	for item in resolved.values():
+		row = item.row
+		if row.get("link_doctype") != PROJECT or row.get("param_type") not in LINK_TYPES:
+			continue
+		value = coerce(row)
+		names.update(value if isinstance(value, list) else [value] if value else [])
+	if not names:
+		return []
+	return sorted(frappe.get_all(PROJECT, filters={"name": ["in", list(names)]}, pluck="name"))
+
+
+def set_doc_projects(doc, resolved: dict[str, frappe._dict]) -> None:
+	projects = projects_of(resolved)
+	if [row.project for row in doc.get(PROJECTS_FIELD) or []] != projects:
+		doc.set(PROJECTS_FIELD, [{"project": project} for project in projects])
+
+
+def sync_goal_projects(goals: list[str]) -> None:
+	"""Rewrite the project relation of saved goals in place, without saving them."""
+	for goal in goals:
+		try:
+			projects = projects_of(resolve_for_name(goal))
+		except frappe.ValidationError:
+			continue
+		keys = {"parent": goal, "parenttype": GOAL, "parentfield": PROJECTS_FIELD}
+		stored = frappe.get_all(GOAL_PROJECT, filters=keys, pluck="project", order_by="idx asc")
+		if stored == projects:
+			continue
+		frappe.db.delete(GOAL_PROJECT, keys)
+		for idx, project in enumerate(projects, start=1):
+			row = frappe.get_doc({"doctype": GOAL_PROJECT, **keys, "idx": idx, "project": project})
+			row.set_new_name()
+			row.db_insert()
 
 
 def _is_ref(value: Any) -> bool:

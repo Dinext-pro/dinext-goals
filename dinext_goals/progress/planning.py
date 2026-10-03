@@ -31,9 +31,11 @@ def is_overdue(status: str | None, end, progress, on_date) -> bool:
 
 
 def rag(deviation, overdue: bool, yellow_threshold, red_threshold) -> str:
-	if overdue or flt(deviation) > flt(red_threshold):
+	"""``deviation`` is actual minus planned progress; the thresholds limit the lag behind the plan."""
+	lag = -flt(deviation)
+	if overdue or lag > flt(red_threshold):
 		return RAG_RED
-	if flt(deviation) > flt(yellow_threshold):
+	if lag > flt(yellow_threshold):
 		return RAG_YELLOW
 	return RAG_GREEN
 

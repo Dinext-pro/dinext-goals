@@ -206,8 +206,9 @@
 		return { text: format_number(v, null, Number.isInteger(v) ? 0 : 2), suffix: "" };
 	}
 
-	function kpi_tile(key, label, value, { unit = "", rag = "", hint = "", percent = false } = {}) {
+	function kpi_tile(key, label, value, { unit = "", rag = "", hint = "", percent = false, signed = false } = {}) {
 		const compact = percent ? { text: format_number(value || 0, null, 1), suffix: "" } : fmt_compact(value);
+		if (signed && Number(value) > 0) compact.text = `+${compact.text}`;
 		const exact = percent ? `${format_number(value || 0, null, 2)}%` : format_number(value || 0, null, 2);
 		const tail = [compact.suffix, percent ? "%" : unit].filter(Boolean).join(" ");
 		return `
@@ -232,7 +233,10 @@
 		} else {
 			tiles.push(kpi_tile("progress", __("Progress"), d.progress, { percent: true, rag: d.rag_status }));
 			tiles.push(kpi_tile("planned", __("Planned Progress"), d.planned_progress, { percent: true }));
-			tiles.push(kpi_tile("deviation", __("Deviation"), d.deviation, { percent: true }));
+			tiles.push(kpi_tile("deviation", __("Deviation"), d.deviation, { percent: true, signed: true }));
+			if (d.is_group) {
+				tiles.push(kpi_tile("achievement", __("Achievement"), d.achievement_percent, { percent: true }));
+			}
 		}
 		if (has_metric && (d.scale || []).length) {
 			tiles.push(kpi_tile("coefficient", __("Coefficient"), d.coefficient));

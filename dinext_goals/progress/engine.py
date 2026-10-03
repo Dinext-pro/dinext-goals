@@ -187,15 +187,23 @@ class Calculator:
 		values = stored_values(doc)
 
 		if doc.is_group:
+			achievement = None
 			if doc.progress_method == "Auto" and not doc.is_new():
-				children = [self.view(name) for name in hierarchy.get_child_names(doc.name)]
-				rolled = rollup.weighted_progress(
-					[{"progress": c.progress, "weight": c.weight, "status": c.status} for c in children]
-				)
+				children = [
+					{
+						"progress": c.progress,
+						"achievement": c.achievement,
+						"weight": c.weight,
+						"status": c.status,
+					}
+					for c in (self.view(name) for name in hierarchy.get_child_names(doc.name))
+				]
+				rolled = rollup.weighted(children, "progress")
 				if rolled is not None:
 					values.progress = rolled
+					achievement = rollup.weighted(children, "achievement")
 			values.progress = metrics.clamp_progress(values.progress)
-			values.achievement_percent = flt(values.progress)
+			values.achievement_percent = flt(values.progress) if achievement is None else achievement
 		else:
 			context = self._context(doc, key, params, date_from, date_to)
 			if doc.status == STATUS_DRAFT and doc.target_source == "Provider":
@@ -216,7 +224,7 @@ class Calculator:
 		values.planned_progress = planning.planned_progress(
 			doc.exp_start_date, doc.exp_end_date, self.on_date
 		)
-		values.deviation = round(flt(values.planned_progress) - flt(values.progress), 2)
+		values.deviation = round(flt(values.progress) - flt(values.planned_progress), 2)
 		overdue = planning.is_overdue(doc.status, doc.exp_end_date, values.progress, self.on_date)
 		values.is_overdue = 1 if overdue else 0
 		values.rag_status = planning.rag(values.deviation, overdue, self.yellow, self.red)

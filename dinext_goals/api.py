@@ -239,20 +239,42 @@ def _linked_card(row) -> dict | None:
 	return card
 
 
-def map_period(year: int | str | None, month: int | str | None) -> tuple[date, date] | None:
-	if not cint(year):
+def _as_list(value: Any) -> list[str]:
+	"""A filter value from Desk: a list, its JSON or a single string."""
+	if isinstance(value, str):
+		text = value.strip()
+		value = json.loads(text) if text.startswith("[") else [text]
+	if not value:
+		return []
+	return [str(item) for item in (value if isinstance(value, list | tuple) else [value]) if item]
+
+
+def _month_start(value: str | None) -> date | None:
+	"""``YYYY-MM`` to the first day of the month."""
+	if not value:
 		return None
-	year = cint(year)
-	if cint(month):
-		start = date(year, cint(month), 1)
-		return start, getdate(get_last_day(start))
-	return date(year, 1, 1), date(year, 12, 31)
+	try:
+		year, month = (int(part) for part in str(value).split("-")[:2])
+		return date(year, month, 1)
+	except ValueError:
+		frappe.throw(_("Invalid month {0}: expected YYYY-MM").format(value))
 
 
-def _matches(row, status: str | None, period: tuple[date, date] | None, include_cancelled) -> bool:
-	if status and row.status != status:
+def map_period(period_from: str | None, period_to: str | None) -> tuple[date, date] | None:
+	"""Months from ``period_from`` to ``period_to`` inclusive; a missing bound leaves that side open."""
+	start = _month_start(period_from)
+	end = _month_start(period_to)
+	if not start and not end:
+		return None
+	if start and end and end < start:
+		start, end = end, start
+	return start or date.min, getdate(get_last_day(end)) if end else date.max
+
+
+def _matches(row, statuses: list[str], period: tuple[date, date] | None, include_cancelled) -> bool:
+	if statuses and row.status not in statuses:
 		return False
-	if not status and not cint(include_cancelled) and row.status == STATUS_CANCELLED:
+	if not statuses and not cint(include_cancelled) and row.status == STATUS_CANCELLED:
 		return False
 	if period:
 		start, end = row.exp_start_date, row.exp_end_date
@@ -264,45 +286,51 @@ def _matches(row, status: str | None, period: tuple[date, date] | None, include_
 @frappe.whitelist()
 def get_goal_map(
 	root: str | None = None,
-	goal_type: str | None = None,
-	goal_owner: str | None = None,
+	goal_type: str | list | None = None,
+	goal_owner: str | list | None = None,
 	company: str | None = None,
+	project: str | None = None,
 	show_linked: int | str = 0,
 	include_cancelled: int | str = 0,
-	status: str | None = STATUS_ACTIVE,
-	year: int | str | None = None,
-	month: int | str | None = None,
+	status: str | list | None = STATUS_ACTIVE,
+	period_from: str | None = None,
+	period_to: str | None = None,
 ) -> dict:
-	"""Goal trees for the map. Status and period apply to every card, the explicit root included;
-	a card whose parent is filtered out hangs under its nearest drawn ancestor or becomes a tree.
-	Type, owner and company pick the trees."""
+	"""Goal trees for the map. Statuses (any of the list; empty = all) and the period apply to every card,
+	the explicit root included; a card whose parent is filtered out hangs under its nearest drawn ancestor
+	or becomes a tree. Types, owners, company and project pick the trees."""
 	frappe.has_permission(GOAL, "read", throw=True)
-	period = map_period(year, month)
+	statuses = _as_list(status)
+	period = map_period(period_from, period_to)
 	if root:
 		_goal_for(root)
 		seeds = [root]
 	else:
-		filters: dict[str, Any] = {}
-		if status:
-			filters["status"] = status
+		filters: list = []
+		if statuses:
+			filters.append(["status", "in", statuses])
 		elif not cint(include_cancelled):
-			filters["status"] = ["!=", STATUS_CANCELLED]
-		if goal_type:
-			filters["goal_type"] = goal_type
-		if goal_owner:
-			filters["goal_owner"] = goal_owner
+			filters.append(["status", "!=", STATUS_CANCELLED])
+		if types := _as_list(goal_type):
+			filters.append(["goal_type", "in", types])
+		if owners := _as_list(goal_owner):
+			filters.append(["goal_owner", "in", owners])
 		if company:
-			filters["company"] = company
-		candidates = [
-			row.name
-			for row in frappe.get_all(
-				GOAL,
-				filters=filters,
-				fields=["name", "status", "exp_start_date", "exp_end_date"],
-				order_by="exp_start_date desc, subject asc",
+			filters.append(["company", "=", company])
+		if project:
+			filters.append([parameters.GOAL_PROJECT, "project", "=", project])
+		candidates = list(
+			dict.fromkeys(
+				row.name
+				for row in frappe.get_all(
+					GOAL,
+					filters=filters,
+					fields=["name", "status", "exp_start_date", "exp_end_date"],
+					order_by="exp_start_date desc, subject asc",
+				)
+				if _matches(row, statuses, period, include_cancelled)
 			)
-			if _matches(row, status, period, include_cancelled)
-		]
+		)
 		candidate_set = set(candidates)
 		seeds = [name for name in candidates if not set(hierarchy.get_ancestors(name)) & candidate_set]
 
@@ -327,7 +355,7 @@ def get_goal_map(
 			row = rows.get(child)
 			if not row or child in path:
 				continue
-			if _matches(row, status, period, include_cancelled):
+			if _matches(row, statuses, period, include_cancelled):
 				result.append(build(child, path))
 			else:
 				result.extend(drawn_children(child, (*path, child)))
@@ -356,7 +384,7 @@ def get_goal_map(
 		row = rows.get(seed)
 		if not row:
 			continue
-		if _matches(row, status, period, include_cancelled):
+		if _matches(row, statuses, period, include_cancelled):
 			trees.append(build(seed, ()))
 		else:
 			trees.extend(drawn_children(seed, (seed,)))

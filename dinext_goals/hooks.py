@@ -63,6 +63,14 @@ has_permission = {
 	"Goal Log": "dinext_goals.goals.permissions.goal_log_has_permission",
 }
 
+doctype_js = {
+	"Project": "public/js/project_goals.js",
+}
+
+override_doctype_dashboards = {
+	"Project": "dinext_goals.integrations.project.get_dashboard_data",
+}
+
 scheduler_events = {
 	"daily": ["dinext_goals.tasks.daily"],
 }
@@ -88,6 +96,7 @@ workflow_approval_fingerprint_excluded_fields = [
 			"coefficient",
 			"result_value",
 			"approver_users",
+			"goal_projects",
 			"status",
 		],
 	}
