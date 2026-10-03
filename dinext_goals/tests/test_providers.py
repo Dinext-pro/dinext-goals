@@ -100,6 +100,12 @@ class TestRegistry(GoalTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			get_provider("no_such_provider")
 
+	def test_providers_describe_their_logic(self):
+		for row in list_providers():
+			self.assertTrue(row["description"], row["key"])
+			self.assertTrue(row["details"], row["key"])
+			self.assertTrue(all(isinstance(line, str) and line for line in row["details"]), row["key"])
+
 
 class TestGLProfit(GoalTestCase):
 	def setUp(self):

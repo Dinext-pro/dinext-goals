@@ -5,6 +5,7 @@ GOAL_PARENT = "Goal Parent"
 GOAL_PARAMETER = "Goal Parameter"
 GOAL_LOG = "Goal Log"
 GOAL_TEMPLATE = "Goal Template"
+GOAL_CAMPAIGN = "Goal Campaign"
 SETTINGS = "Goals Settings"
 
 ROLE_MANAGER = "Goal Manager"

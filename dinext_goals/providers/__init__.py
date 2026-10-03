@@ -1,6 +1,6 @@
 """Metric provider registry (hook ``dinext_goals_metric_providers``).
 
-A provider exposes ``label``, ``description``, ``params`` (list of dicts with code, param_type,
+A provider exposes ``label``, ``description``, ``details`` (lines describing the calculation), ``params`` (list of dicts with code, param_type,
 required), ``is_available()``, ``get_value(goal, params, date_from, date_to)`` and optionally
 ``get_target(goal, params)``. ``goal`` is the Goal document, ``params`` its effective parameters.
 """
@@ -21,6 +21,7 @@ class MetricProvider:
 	key = ""
 	label = ""
 	description = ""
+	details: tuple[str, ...] = ()
 	params: tuple[dict, ...] = ()
 	supports_target = False
 
@@ -38,6 +39,7 @@ class MetricProvider:
 			"key": self.key,
 			"label": _(self.label),
 			"description": _(self.description),
+			"details": [_(line) for line in self.details],
 			"params": list(self.params),
 			"supports_target": self.supports_target,
 			"available": self.is_available(),

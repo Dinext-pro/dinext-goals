@@ -211,25 +211,28 @@ class TestRecalculation(GoalTestCase):
 
 
 class TestMotivationFormulas(GoalTestCase):
-	"""The four KPI_v6 result formulas of the demo, on hand-entered values."""
+	"""The result formulas of the shipped templates, on hand-entered values."""
 
-	def _manager_tree(self, itk_value, profit_value, kpers_value):
-		root = make_group("ITK", params=[param("profit_share", "Percent", 5)])
+	def _manager_tree(self, company_value, profit_value, kpers_value, gate="ORG-PROFIT"):
+		params = [param("profit_share", "Percent", 5)]
+		if gate:
+			params.append(param("gate_goal_code", "Data", gate))
+		root = make_group("Company", params=params)
 		make_goal(
-			"ITK profit",
+			"Company profit",
 			parents=[root.name],
-			goal_code="ROOT-ITK-PROFIT",
+			goal_code="ROOT-ORG-PROFIT",
 			target=2_500_000,
-			current_value=itk_value,
+			current_value=company_value,
 		)
-		cfo = make_group("CFO", parents=[root.name], goal_code="ROOT-CFO")
+		cfo = make_group("Department", parents=[root.name], goal_code="ROOT-DEP")
 		mgr = make_group(
-			"Manager bonus", parents=[cfo.name], goal_code="ROOT-CFO-MGR", result_formula=MANAGER_RESULT
+			"Manager bonus", parents=[cfo.name], goal_code="ROOT-DEP-MGR", result_formula=MANAGER_RESULT
 		)
 		make_goal(
 			"Profit",
 			parents=[mgr.name],
-			goal_code="ROOT-CFO-PROFIT",
+			goal_code="ROOT-DEP-PROFIT",
 			target=1_000_000,
 			current_value=profit_value,
 			scale=((0, 0), (50, 1)),
@@ -237,7 +240,7 @@ class TestMotivationFormulas(GoalTestCase):
 		make_goal(
 			"Team utilization",
 			parents=[mgr.name],
-			goal_code="ROOT-CFO-KPERS",
+			goal_code="ROOT-DEP-KPERS",
 			current_value=kpers_value,
 			scale=MANAGER_KPERS_SCALE,
 		)
@@ -246,12 +249,15 @@ class TestMotivationFormulas(GoalTestCase):
 	def test_manager_bonus(self):
 		self.assertAlmostEqual(self._manager_tree(1_756_000, 1_356_000, 113.18), 0.05 * 1_356_000 * 1 * 1.2)
 
-	def test_manager_bonus_when_itk_below_half(self):
+	def test_manager_bonus_when_company_below_half(self):
 		self.assertAlmostEqual(self._manager_tree(1_000_000, 850_000, 95), 0.05 * 850_000 * 1 * 1)
 		self.assertEqual(self._manager_tree(1_000_000, 790_000, 95), 0)
 
-	def test_manager_bonus_without_itk_profit(self):
+	def test_manager_bonus_without_company_profit(self):
 		self.assertEqual(self._manager_tree(-10, 1_356_000, 113.18), 0)
+
+	def test_manager_bonus_without_gate(self):
+		self.assertAlmostEqual(self._manager_tree(-10, 790_000, 95, gate=None), 0.05 * 790_000 * 1 * 1)
 
 	def test_specialist_bonus(self):
 		spec = make_group(

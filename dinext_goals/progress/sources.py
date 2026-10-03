@@ -123,8 +123,9 @@ def validate_source_config(doc) -> None:
 				doc.aggregation,
 				doc.linked_document_filter,
 			)
-		elif source == "Provider" and not doc.metric_provider:
-			frappe.throw(_("Metric Provider is required for the Provider source"))
+		elif source == "Provider":
+			if not doc.metric_provider:
+				frappe.throw(_("Metric Provider is required for the Provider source"))
 		elif source == "Python Rule":
 			formulas.check_syntax(doc.calculation_rule, "Calculation Rule")
 	if doc.target_source == "Provider":

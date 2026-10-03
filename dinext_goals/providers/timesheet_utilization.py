@@ -70,6 +70,12 @@ class TimesheetUtilizationProvider(MetricProvider):
 	key = "timesheet_utilization"
 	label = "Commercial utilization (timesheets)"
 	description = "Utilized hours against the utilization plan of approved user timesheets starting in the period, in percent. Parameter scope: user (goal owner) or team (workers of the cost_center parameter)."
+	details = (
+		"Source: user timesheets in status Approved whose start date falls in the period (from the planned start to the earlier of today and the planned end).",
+		"Value: the sum of utilized hours divided by the sum of utilization plan hours, in percent; the plan is calculated by Dinext Timesheets.",
+		"Scope user: timesheets of the goal owner.",
+		"Scope team: timesheets of the workers whose latest cost center assignment on the period end is the cost_center parameter or its child cost center.",
+	)
 	params = (
 		{"code": "scope", "param_type": "Select", "options": "user\nteam", "required": False},
 		{"code": "cost_center", "param_type": "Link", "link_doctype": "Cost Center", "required": False},

@@ -3,7 +3,7 @@
 `bootstrap_users` and `teardown_users` run through `bench execute` from the Cypress
 config, so the password never leaves the test run. The seed and cleanup methods are
 whitelisted only while `bench serve` sets `dev_server`. Every record they create
-starts with `PREFIX` or belongs to `TEMPLATE`.
+starts with `PREFIX` or belongs to `TEMPLATE`; the suite titles its campaigns with `PREFIX`.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from frappe.tests.ui_test_helpers import whitelist_for_tests
 from frappe.utils import add_days, nowdate
 from frappe.utils.password import update_password
 
-from dinext_goals.constants import GOAL, GOAL_LOG, GOAL_TEMPLATE
+from dinext_goals.constants import GOAL, GOAL_CAMPAIGN, GOAL_LOG, GOAL_TEMPLATE
 from dinext_goals.goals import hierarchy
 from dinext_goals.progress import engine
 
@@ -79,6 +79,8 @@ def _goals() -> list[str]:
 
 
 def _cleanup() -> None:
+	for name in frappe.get_all(GOAL_CAMPAIGN, filters={"title": ["like", f"{PREFIX}%"]}, pluck="name"):
+		frappe.delete_doc(GOAL_CAMPAIGN, name, ignore_permissions=True, force=True)
 	goals = _goals()
 	if goals:
 		frappe.db.delete(GOAL_LOG, {"goal": ["in", goals]})

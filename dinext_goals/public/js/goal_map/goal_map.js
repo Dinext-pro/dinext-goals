@@ -36,14 +36,18 @@ const STYLE = {
 	mini: { fontSize: 56, fontWeight: 700, lineHeight: 64 },
 	mini_small: { fontSize: 38, fontWeight: 700, lineHeight: 46 },
 };
-const FIT_ICONS = {
-	width: '<path d="M1.5 3v10M14.5 3v10M4 8h8M6.5 5.5 4 8l2.5 2.5M9.5 5.5 12 8l-2.5 2.5"/>',
-	height: '<path d="M3 1.5h10M3 14.5h10M8 4v8M5.5 6.5 8 4l2.5 2.5M5.5 9.5 8 12l2.5-2.5"/>',
+// Outline icons on a 16x16 grid for the chart toolbox; it strokes them with iconStyle.borderColor.
+const MAGNIFIER = "M1 6.5a5.5 5.5 0 1 0 11 0a5.5 5.5 0 1 0 -11 0M10.5 10.5 15 15";
+const TOOLBOX_ICONS = {
+	zoom_in: `path://${MAGNIFIER}M4 6.5h5M6.5 4v5`,
+	zoom_out: `path://${MAGNIFIER}M4 6.5h5`,
+	fit: "path://M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4M5 8h6M8 5v6",
+	fit_width: "path://M1.5 3v10M14.5 3v10M4 8h8M6.5 5.5 4 8l2.5 2.5M9.5 5.5 12 8l-2.5 2.5",
+	fit_height: "path://M3 1.5h10M3 14.5h10M8 4v8M5.5 6.5 8 4l2.5 2.5M5.5 9.5 8 12l2.5-2.5",
+	expand_all: "path://M3 6.5 8 1.5l5 5M3 9.5l5 5 5-5",
+	collapse_all: "path://M3 1.5l5 5 5-5M3 14.5l5-5 5 5",
 };
-
-function fit_icon(axis) {
-	return `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FIT_ICONS[axis]}</svg>`;
-}
+const TOOLBOX = { top: 12, right: 12, itemSize: 16, itemGap: 12 };
 
 function esc(value) {
 	return frappe.utils.escape_html(value == null ? "" : String(value));
@@ -256,15 +260,6 @@ export class GoalMap {
 		this.$map = $(`
 			<div class="dinext-goal-map" data-testid="goal-map">
 				<div class="dinext-goal-map-chart" data-testid="goal-map-chart"></div>
-				<div class="dinext-goal-map-toolbar">
-					<button class="btn btn-xs btn-default" data-action="zoom-in" title="${__("Zoom In")}">+</button>
-					<button class="btn btn-xs btn-default" data-action="zoom-out" title="${__("Zoom Out")}">&minus;</button>
-					<button class="btn btn-xs btn-default" data-action="fit">${__("Fit to Screen")}</button>
-					<button class="btn btn-xs btn-default" data-action="fit-width" title="${__("Fit to Width")}" aria-label="${__("Fit to Width")}">${fit_icon("width")}</button>
-					<button class="btn btn-xs btn-default" data-action="fit-height" title="${__("Fit to Height")}" aria-label="${__("Fit to Height")}">${fit_icon("height")}</button>
-					<button class="btn btn-xs btn-default" data-action="expand">${__("Expand All")}</button>
-					<button class="btn btn-xs btn-default" data-action="collapse">${__("Collapse All")}</button>
-				</div>
 				<div class="dinext-goal-map-legend">
 					<span><span class="dinext-goal-rag-dot dinext-goal-rag-green"></span>${__("On track")}</span>
 					<span><span class="dinext-goal-rag-dot dinext-goal-rag-yellow"></span>${__("At risk")}</span>
@@ -274,23 +269,46 @@ export class GoalMap {
 			</div>`).appendTo(this.page.main);
 		this.$chart = this.$map.find(".dinext-goal-map-chart");
 		this.$empty = this.$map.find(".dinext-goal-map-empty");
-		this.$map.on("click", "[data-action]", (e) => {
-			const action = $(e.currentTarget).attr("data-action");
-			if (action === "zoom-in") this.set_zoom(this.zoom * 1.25);
-			if (action === "zoom-out") this.set_zoom(this.zoom / 1.25);
-			if (action === "fit") this.fit();
-			if (action === "fit-width") this.fit("width");
-			if (action === "fit-height") this.fit("height");
-			if (action === "expand") {
-				this.collapsed.clear();
-				this.render({ fit: true });
-			}
-			if (action === "collapse") {
-				this.walk((node) => node.children && node.children.length && this.collapsed.add(node.id));
-				this.trees.forEach((tree) => this.collapsed.delete(tree.id));
-				this.render({ fit: true });
-			}
-		});
+	}
+
+	expand_all() {
+		this.collapsed.clear();
+		this.render({ fit: true });
+	}
+
+	collapse_all() {
+		this.walk((node) => node.children && node.children.length && this.collapsed.add(node.id));
+		this.trees.forEach((tree) => this.collapsed.delete(tree.id));
+		this.render({ fit: true });
+	}
+
+	toolbox_option(colors) {
+		const feature = (title, icon, onclick) => ({ show: true, title, icon, onclick });
+		return {
+			show: true,
+			...TOOLBOX,
+			showTitle: false,
+			tooltip: { show: true, formatter: (param) => param.title },
+			iconStyle: { borderColor: colors.muted, borderWidth: 1.5 },
+			emphasis: { iconStyle: { borderColor: colors.text } },
+			feature: {
+				myZoomIn: feature(__("Zoom In"), TOOLBOX_ICONS.zoom_in, () => this.set_zoom(this.zoom * 1.25)),
+				myZoomOut: feature(__("Zoom Out"), TOOLBOX_ICONS.zoom_out, () => this.set_zoom(this.zoom / 1.25)),
+				myFit: feature(__("Fit to Screen"), TOOLBOX_ICONS.fit, () => this.fit()),
+				myFitWidth: feature(__("Fit to Width"), TOOLBOX_ICONS.fit_width, () => this.fit("width")),
+				myFitHeight: feature(__("Fit to Height"), TOOLBOX_ICONS.fit_height, () => this.fit("height")),
+				myExpandAll: feature(__("Expand All"), TOOLBOX_ICONS.expand_all, () => this.expand_all()),
+				myCollapseAll: feature(__("Collapse All"), TOOLBOX_ICONS.collapse_all, () => this.collapse_all()),
+				saveAsImage: {
+					title: __("Save as Image"),
+					name: this.image_name(),
+					type: "png",
+					pixelRatio: 2,
+					backgroundColor: colors.bg,
+					excludeComponents: ["toolbox", "thumbnail"],
+				},
+			},
+		};
 	}
 
 	make_chart() {
@@ -830,24 +848,7 @@ export class GoalMap {
 					extraCssText: "max-width: 320px; white-space: normal;",
 					formatter: (params) => (params.dataType === "node" && params.data && params.data.tip) || "",
 				},
-				toolbox: {
-					show: true,
-					right: 12,
-					top: 12,
-					itemSize: 16,
-					iconStyle: { borderColor: colors.muted },
-					emphasis: { iconStyle: { borderColor: colors.text } },
-					feature: {
-						saveAsImage: {
-							title: __("Save as Image"),
-							name: this.image_name(),
-							type: "png",
-							pixelRatio: 2,
-							backgroundColor: colors.bg,
-							excludeComponents: ["toolbox", "thumbnail"],
-						},
-					},
-				},
+				toolbox: this.toolbox_option(colors),
 				thumbnail: {
 					show: true,
 					right: 12,
@@ -908,14 +909,13 @@ export class GoalMap {
 		this.rescale(zoom);
 	}
 
-	// The chart area not covered by the toolbar (top) and the legend (bottom), in chart pixels.
+	// The chart area not covered by the toolbox (top) and the legend (bottom), in chart pixels.
 	free_area() {
 		const chart = this.$chart[0].getBoundingClientRect();
 		const width = chart.width || 800;
 		const height = chart.height || 600;
-		const toolbar = this.$map.find(".dinext-goal-map-toolbar")[0].getBoundingClientRect();
 		const legend = this.$map.find(".dinext-goal-map-legend")[0].getBoundingClientRect();
-		const top = toolbar.height ? toolbar.bottom - chart.top + 8 : 12;
+		const top = TOOLBOX.top + TOOLBOX.itemSize + 12;
 		const bottom = legend.height ? chart.bottom - legend.top + 8 : 12;
 		const free_h = Math.max(height - top - bottom, height * 0.5);
 		return { width, height, left: 12, top: Math.min(top, height - free_h), free_w: Math.max(width - 24, 50), free_h };

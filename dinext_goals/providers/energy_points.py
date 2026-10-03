@@ -26,6 +26,11 @@ class EnergyPointsProvider(MetricProvider):
 	key = "energy_points"
 	label = "Energy points"
 	description = "Sum of energy points of the goal owner in the period."
+	details = (
+		"Source: Energy Point Log of the goal owner created in the period (from the planned start to the earlier of today and the planned end).",
+		"Value: the sum of points; review points and reverted entries are excluded.",
+		"No parameters.",
+	)
 
 	def get_value(self, goal, params, date_from, date_to) -> float:
 		return energy_points(goal.goal_owner, date_from, date_to)

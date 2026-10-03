@@ -14,6 +14,7 @@ from dinext_goals.constants import GOAL, GOAL_TEMPLATE
 from dinext_goals.goals import hierarchy
 from dinext_goals.goals.permissions import can_edit_goal, is_goal_manager
 from dinext_goals.progress import engine, formulas, scale
+from dinext_goals.providers import get_provider
 
 COPIED_FIELDS = (
 	"is_group",
@@ -89,6 +90,8 @@ def validate_template(doc) -> None:
 		if not cint(item.is_group) and not item.metric_type:
 			frappe.throw(_("Item {0}: Metric Type is required for a non-group goal").format(item.item_key))
 		scale.parse_spec(item.scale_spec)
+		if item.target_source == "Provider" and item.target_provider:
+			get_provider(item.target_provider, check_available=False)
 		for fieldname, label in (
 			("target_formula", "Target Formula"),
 			("calculation_rule", "Calculation Rule"),
@@ -186,7 +189,10 @@ def create_goals(
 	company: str | None = None,
 	values: dict | None = None,
 	subject_suffix: str | None = None,
+	end_date=None,
 ) -> list[str]:
+	"""Create the template tree; with ``end_date`` (a period end) items without their own duration
+	span up to it and the other items end no later than it."""
 	doc = frappe.get_doc(GOAL_TEMPLATE, template)
 	if not cint(doc.is_active):
 		frappe.throw(_("Template {0} is not active").format(template))
@@ -198,11 +204,23 @@ def create_goals(
 		parent_owner = frappe.db.get_value(GOAL, parent_goal, "goal_owner")
 	values = values or {}
 	start_date = getdate(start_date)
+	end_date = getdate(end_date) if end_date else None
+	if end_date and end_date < start_date:
+		frappe.throw(_("The end date {0} is before the start date {1}").format(end_date, start_date))
 	created: dict[str, str] = {}
 	for item in ordered_items(doc):
 		is_root = not item.parent_key
 		goal_start = add_days(start_date, cint(item.start_offset_days))
 		duration = cint(item.duration_days) or cint(doc.default_duration_days) or 90
+		goal_end = add_days(goal_start, duration - 1)
+		if end_date:
+			goal_end = min(goal_end, end_date) if cint(item.duration_days) else end_date
+			if getdate(goal_start) > end_date:
+				frappe.throw(
+					_("Item {0} of template {1} starts after the period end {2}").format(
+						item.item_key, doc.name, end_date
+					)
+				)
 		goal = frappe.new_doc(GOAL)
 		goal.update({field: item.get(field) for field in COPIED_FIELDS})
 		goal.update(
@@ -213,7 +231,7 @@ def create_goals(
 				"goal_owner": _owner_for(item, goal_owner, parent_owner),
 				"company": company,
 				"exp_start_date": goal_start,
-				"exp_end_date": add_days(goal_start, duration - 1),
+				"exp_end_date": goal_end,
 				"goal_template": doc.name,
 			}
 		)

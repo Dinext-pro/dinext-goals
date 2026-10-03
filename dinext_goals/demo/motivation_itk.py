@@ -75,9 +75,9 @@ CC_ITK = "ЦФО ИТК - D"
 CC_IMPL = "ЦФО Внедрение - D"
 CC_SUPP = "ЦФО Сопровождение - D"
 
-T_MANAGER = "Квартальный бонус менеджера"
-T_SPECIALIST = "Квартальный бонус специалиста"
-T_MONTHLY = "Ежемесячная премия"
+T_MANAGER = "Бонус руководителя подразделения"
+T_SPECIALIST = "Бонус сотрудника"
+T_MONTHLY = "Премия за утилизацию"
 T_PROJECT = "Проектный бонус"
 
 VALID_FROM = "2026-07-01"
@@ -623,11 +623,15 @@ def _restore_timesheets(state: dict) -> None:
 
 
 MANAGER_RESULT = (
-	'0 if tree_goal("ITK-PROFIT").value <= 0 else max(0, params.profit_share * child("PROFIT").value'
-	' * (child("PROFIT").coefficient if tree_goal("ITK-PROFIT").achievement >= 50'
+	"0 if params.gate_goal_code and tree_goal(params.gate_goal_code).value <= 0"
+	' else max(0, params.profit_share * child("PROFIT").value'
+	' * (child("PROFIT").coefficient'
+	" if not params.gate_goal_code or tree_goal(params.gate_goal_code).achievement >= 50"
 	' else (1 if child("PROFIT").achievement >= 80 else 0))'
 	' * child("KPERS").coefficient)'
 )
+# The company profit goal gating the manager bonus (template parameter gate_goal_code).
+GATE_GOAL_CODE = "ITK-PROFIT"
 SPECIALIST_RESULT = (
 	'round(child("UTIL").coefficient * child("UTIL").value / 100 * params.bonus_base'
 	' * child("KPERS").coefficient * child("POINTS").coefficient * 100, 2)'
@@ -718,7 +722,7 @@ def _build_quarter(quarter: str) -> dict:
 	)
 	tree["itk_profit"] = _goal(
 		f"Валовая прибыль ЦФО ИТК, {label}",
-		f"{prefix}-ITK-PROFIT",
+		f"{prefix}-{GATE_GOAL_CODE}",
 		DIRECTOR,
 		start,
 		end,
@@ -749,7 +753,15 @@ def _build_quarter(quarter: str) -> dict:
 				_param("projects", "Link List", cfo["projects"], label="Проекты ЦФО", link_doctype="Project"),
 			],
 		)
-		manager = _from_template(T_MANAGER, start, cfo["manager"], cfo_prefix, cfo_goal, suffix=label)
+		manager = _from_template(
+			T_MANAGER,
+			start,
+			cfo["manager"],
+			cfo_prefix,
+			cfo_goal,
+			values={"gate_goal_code": GATE_GOAL_CODE},
+			suffix=label,
+		)
 		frappe.db.set_value(GOAL, manager[f"{cfo_prefix}-PROFIT"], "target", cfo["profit_target"][quarter])
 		tree["cfo"][cfo["key"]] = {"goal": cfo_goal, "manager": manager}
 		for key in cfo["specialists"]:

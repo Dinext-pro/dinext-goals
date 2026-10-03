@@ -57,14 +57,18 @@ class TestAppBootstrap(FrappeTestCase):
 		from dinext_goals.demo import motivation_itk as demo
 
 		expected = {
-			demo.T_MANAGER: ({"MGR", "PROFIT", "KPERS"}, {"cost_center"}, demo.MANAGER_RESULT),
+			demo.T_MANAGER: (
+				{"MGR", "PROFIT", "KPERS"},
+				{"cost_center", "profit_share", "gate_goal_code"},
+				demo.MANAGER_RESULT,
+			),
 			demo.T_SPECIALIST: (
 				{"SPEC", "UTIL", "POINTS", "KPERS"},
 				{"grade", "bonus_base", "k_prem", "points_plan"},
 				demo.SPECIALIST_RESULT,
 			),
 			demo.T_MONTHLY: ({"MONTH"}, {"k_prem"}, demo.MONTHLY_RESULT),
-			demo.T_PROJECT: ({"PROJECT"}, {"projects"}, demo.PROJECT_RESULT),
+			demo.T_PROJECT: ({"PROJECT"}, {"projects", "project_bonus_share"}, demo.PROJECT_RESULT),
 		}
 		fixture_filter = next(
 			f
@@ -82,6 +86,13 @@ class TestAppBootstrap(FrappeTestCase):
 			self.assertEqual(root.result_formula, formula, name)
 			self.assertNotIn(demo.MARKER, template.description or "")
 
+	def test_goal_template_fixtures_are_generic(self):
+		path = frappe.get_app_path("dinext_goals", "fixtures", "goal_template.json")
+		with open(path, encoding="utf-8") as fixture:
+			text = fixture.read()
+		for word in ("ИТК", "ITK", "KPI_v6", "Квартальный", "Ежемесячная"):
+			self.assertNotIn(word, text)
+
 	def test_settings_defaults(self):
 		self.assertEqual(frappe.db.get_single_value(SETTINGS, "red_threshold"), 25)
 		self.assertEqual(frappe.db.get_single_value(SETTINGS, "yellow_threshold"), 10)
@@ -90,7 +101,10 @@ class TestAppBootstrap(FrappeTestCase):
 		workspace = frappe.get_doc("Workspace", "Цели")
 		self.assertEqual({row.number_card_name for row in workspace.number_cards}, set(NUMBER_CARDS))
 		self.assertEqual({row.chart_name for row in workspace.charts}, set(CHARTS))
-		self.assertTrue({"Goal", "Goal Template", "goal-map"} <= {row.link_to for row in workspace.shortcuts})
+		self.assertTrue(
+			{"Goal", "Goal Template", "Goal Campaign", "goal-map"}
+			<= {row.link_to for row in workspace.shortcuts}
+		)
 		self.assertTrue(frappe.db.exists("Page", "goal-map"))
 		my_goals = frappe.get_doc("Number Card", "My Goals")
 		self.assertIn("frappe.session.user", my_goals.dynamic_filters_json)

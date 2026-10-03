@@ -41,7 +41,7 @@ const openMap = (root) => {
 const setMapFilter = (fieldname, value) =>
 	cy.window().then((win) => goalMap(win).page.fields_dict[fieldname].set_value(value));
 
-// Centers the item first: the toolbar, legend and minimap overlay the chart edges.
+// Centers the item first: the toolbox, legend and minimap overlay the chart edges.
 const clickMapItem = (kind, test) =>
 	cy.window().then((win) => {
 		const item = mapItem(win, kind, test);
@@ -79,6 +79,15 @@ const overflowingCards = (win) => {
 	});
 };
 
+// Grouped buttons sit in closed dropdowns; labels are resolved through the desk translations.
+const clickFormButton = (label) =>
+	cy
+		.window()
+		.should((win) => expect(win.cur_frm.custom_buttons[win.__(label)], label).to.have.length(1))
+		.then((win) => win.cur_frm.custom_buttons[win.__(label)][0].click());
+const openDialog = (win, fieldname) => win.frappe.ui.open_dialogs.find((dialog) => dialog.fields_dict[fieldname]);
+const providerOptions = (win, field) => (win.cur_frm.get_field(field).df.options || []).map((option) => option.value);
+
 const createDialog = (win) => win.frappe.ui.open_dialogs.find((dialog) => dialog.fields_dict.param__projects);
 
 const MINI = /^\{mini(_small)?_(green|yellow|red|none|link)\|[^{}|]+\}$/;
@@ -89,7 +98,7 @@ const drawnText = (win, item) => {
 	return text && !text.ignore && !text.invisible ? text.style.text : "";
 };
 
-// The model box (tree plus margin) in chart pixels and the area free of the toolbar and the legend.
+// The model box (tree plus margin) in chart pixels and the area free of the toolbox and the legend.
 const fitBounds = (win) => {
 	const map = goalMap(win);
 	const { box } = map.model;
@@ -99,7 +108,30 @@ const fitBounds = (win) => {
 	return { box: { x0, y0, x1, y1 }, free: { x0: area.left, y0: area.top, x1: area.left + area.free_w, y1: area.top + area.free_h } };
 };
 
-const mapAction = (action) => cy.get(`.dinext-goal-map-toolbar [data-action='${action}']`).click();
+// Toolbox icons are drawn on the canvas: click the centre of the icon path of the feature.
+const toolboxIcon = (win, feature) => {
+	const chart = mapChart(win);
+	const view = chart.getViewOfComponentModel(chart.getModel().getComponent("toolbox"));
+	const path = view._features[feature].model.iconPaths[feature];
+	const rect = path.getBoundingRect();
+	const box = globalBox(path, rect.x, rect.y, rect.width, rect.height);
+	return [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2];
+};
+const mapAction = (feature) =>
+	cy.window().then((win) => {
+		const [x, y] = toolboxIcon(win, feature);
+		cy.get(".dinext-goal-map-chart").click(x, y);
+	});
+const MAP_ACTIONS = {
+	myZoomIn: "Увеличить",
+	myZoomOut: "Уменьшить",
+	myFit: "По размеру экрана",
+	myFitWidth: "Вписать по ширине",
+	myFitHeight: "Вписать по высоте",
+	myExpandAll: "Развернуть все",
+	myCollapseAll: "Свернуть все",
+	saveAsImage: "Сохранить как изображение",
+};
 
 // A chart pixel with no card, toggle or edge under it, inside the free area.
 const emptyPoint = (win) => {
@@ -224,9 +256,10 @@ context("goal analytics", () => {
 				expect(card.full, "actual value").to.include(`{v_${card.rag}|`);
 				expect(card.mini, "actual value at a small zoom").to.match(MINI).and.include(`{mini`).and.include(`_${card.rag}|`);
 			});
-			const save = mapChart(win).getOption().toolbox[0].feature.saveAsImage;
-			expect(save, "save as image").to.exist;
-			expect(save.title).to.eq("Сохранить как изображение");
+			const features = mapChart(win).getOption().toolbox[0].feature;
+			expect(Object.keys(features), "map actions in the toolbox").to.deep.eq(Object.keys(MAP_ACTIONS));
+			Object.entries(MAP_ACTIONS).forEach(([key, title]) => expect(features[key].title, key).to.eq(title));
+			expect(win.$(".dinext-goal-map .btn"), "no button bar over the map").to.have.length(0);
 			expect(mapItems(win, "toggle"), "toggles").to.have.length(2);
 			const y = (name) => mapItem(win, "goal", (card) => card.goal === name).y;
 			expect(y(seed().root), "top to bottom").to.be.lessThan(y(seed().middle));
@@ -309,28 +342,31 @@ context("goal analytics", () => {
 			expect(inner.x1, "right").to.be.at.most(outer.x1 + 1);
 			expect(inner.y1, "bottom").to.be.at.most(outer.y1 + 1);
 		};
+		cy.window().then((win) => goalMap(win).set_zoom(1));
+		mapAction("myZoomIn");
+		cy.window().should((win) => expect(goalMap(win).zoom).to.be.closeTo(1.25, 0.01));
+		mapAction("myZoomOut");
+		cy.window().should((win) => expect(goalMap(win).zoom).to.be.closeTo(1, 0.01));
 		cy.window().then((win) => goalMap(win).set_zoom(2));
-		mapAction("fit");
+		mapAction("myFit");
 		cy.window().should((win) => {
 			const { box, free } = fitBounds(win);
 			inside(box, free);
 			const touches = Math.abs(box.x0 - free.x0) < 1.5 || Math.abs(box.y0 - free.y0) < 1.5 || goalMap(win).zoom === 1;
 			expect(touches, "the tree fills the free area").to.eq(true);
 		});
-		mapAction("fit-width");
+		mapAction("myFitWidth");
 		cy.window().should((win) => {
 			const { box, free } = fitBounds(win);
 			expect(box.x0, "left edge").to.be.closeTo(free.x0, 1.5);
 			expect(box.x1, "right edge").to.be.closeTo(free.x1, 1.5);
 		});
-		mapAction("fit-height");
+		mapAction("myFitHeight");
 		cy.window().should((win) => {
 			const { box, free } = fitBounds(win);
 			expect(box.y0, "top edge").to.be.closeTo(free.y0, 1.5);
 			expect(box.y1, "bottom edge").to.be.closeTo(free.y1, 1.5);
 		});
-		cy.get(".dinext-goal-map-toolbar [data-action='fit-width']").should("have.attr", "title", "Вписать по ширине");
-		cy.get(".dinext-goal-map-toolbar [data-action='fit-height']").should("have.attr", "title", "Вписать по высоте");
 		cy.window().then((win) => {
 			const point = emptyPoint(win);
 			expect(point, "an empty point").to.exist;
@@ -398,6 +434,16 @@ context("goal analytics", () => {
 			expect(mapItems(win, "goal").map((card) => card.goal)).not.to.include(seed().history);
 			expect(mapItem(win, "toggle", middleToggle).collapsed).to.eq(true);
 		});
+		mapAction("myExpandAll");
+		cy.window().should((win) => {
+			expect(mapItems(win, "goal").map((card) => card.goal)).to.include(seed().history);
+			expect(mapItem(win, "toggle", middleToggle).collapsed).to.eq(false);
+		});
+		mapAction("myCollapseAll");
+		cy.window().should((win) => {
+			expect(mapItems(win, "goal").map((card) => card.goal)).not.to.include(seed().history);
+			expect(mapItem(win, "toggle", middleToggle).collapsed).to.eq(true);
+		});
 		clickMapItem("goal", (card) => card.goal === seed().middle);
 		cy.window().its("cur_frm.doc.name").should("eq", seed().middle);
 	});
@@ -421,6 +467,119 @@ context("goal analytics", () => {
 		cy.window().should((win) => {
 			const filters = win.cur_list.filter_area.get().map((filter) => [filter[1], filter[3]]);
 			expect(filters).to.deep.include(["project", seed().project]);
+		});
+	});
+
+	it("Provider selection on a goal", () => {
+		signIn(MANAGER);
+		cy.visit("/app/goal/new");
+		cy.window().its("cur_frm.doc.__islocal").should("eq", 1);
+		cy.window().then((win) => win.cur_frm.set_value({ progress_method: "Auto", metric_source: "Provider" }));
+		cy.window().should((win) => {
+			expect(providerOptions(win, "metric_provider")).to.include.members(["gl_profit", "timesheet_utilization"]);
+			expect(providerOptions(win, "target_provider")).to.include("project_budget_profit").and.not.include("gl_profit");
+		});
+		cy.window().then((win) => win.cur_frm.set_value("metric_provider", "gl_profit"));
+		cy.get("#goal-metric_tab-tab").click();
+		cy.get("select[data-fieldname='metric_provider']").should("have.value", "gl_profit");
+		cy.get("[data-testid='metric-provider-info'][data-provider='gl_profit']")
+			.should("be.visible")
+			.find(".dinext-goal-provider-details li")
+			.should("have.length.greaterThan", 1);
+		cy.get("[data-testid='metric-provider-info'] .dinext-goal-provider-params").should("contain", "cost_center");
+		cy.window().then((win) => win.cur_frm.set_value("metric_provider", "timesheet_utilization"));
+		cy.get("[data-testid='metric-provider-info']").should("have.attr", "data-provider", "timesheet_utilization");
+	});
+
+	it("Provider selection in a template row", () => {
+		signIn(MANAGER);
+		openForm("goal-template", seed().template);
+		cy.window().then((win) => {
+			const row = win.cur_frm.doc.items.find((item) => item.item_key === "PRJ");
+			win.cur_frm.fields_dict.items.grid.grid_rows_by_docname[row.name].show_form();
+			return win.frappe.model
+				.set_value(row.doctype, row.name, { progress_method: "Auto", metric_source: "Provider" })
+				.then(() => win.frappe.model.set_value(row.doctype, row.name, "metric_provider", "project_budget_profit"));
+		});
+		cy.get(".grid-row-open [data-testid='metric-provider-info']")
+			.should("have.attr", "data-provider", "project_budget_profit")
+			.and("contain", "projects");
+		cy.get(".grid-row-open select[data-fieldname='metric_provider']").should("have.value", "project_budget_profit");
+	});
+
+	it("Goal campaign for a team", () => {
+		signIn(MANAGER);
+		cy.visit("/app/goal-campaign/new");
+		cy.window().its("cur_frm.doc.period_label").should("not.be.empty");
+		cy.window().then((win) => {
+			const frm = win.cur_frm;
+			expect(frm.doc.period_type).to.eq("Quarter");
+			expect(win.moment(frm.doc.period_start).isAfter(win.moment())).to.eq(true, "next quarter");
+			return frm.set_value({
+				title: `CY Goals Campaign ${frm.doc.period_label}`,
+				default_template: seed().template,
+			});
+		});
+		clickFormButton("Users");
+		cy.window().should((win) => expect(openDialog(win, "users"), "users dialog").to.exist);
+		cy.window().then((win) => openDialog(win, "users").set_value("users", [MANAGER, OWNER]));
+		cy.get(".modal:visible .btn-modal-primary").click();
+		cy.window().should((win) => {
+			const rows = win.cur_frm.doc.items || [];
+			expect(rows.map((row) => [row.row_key, row.goal_owner, row.template])).to.deep.eq([
+				["R1", MANAGER, seed().template],
+				["R2", OWNER, seed().template],
+			]);
+		});
+		cy.window().then((win) => {
+			const [lead, member] = win.cur_frm.doc.items;
+			win.frappe.model.set_value(member.doctype, member.name, "parent_row", lead.row_key);
+			win.cur_frm.fields_dict.items.grid.grid_rows.forEach((row) => row.select(true));
+		});
+		clickFormButton("Set Parameters");
+		cy.window().should((win) => expect(openDialog(win, "param__projects"), "parameters dialog").to.exist);
+		cy.window().then((win) => openDialog(win, "param__projects").set_value("param__projects", [seed().project]));
+		cy.get(".modal:visible .btn-modal-primary").click();
+		cy.window().should((win) => {
+			win.cur_frm.doc.items.forEach((row) => {
+				expect(JSON.parse(row.parameter_values)).to.deep.eq({ projects: [seed().project] });
+			});
+		});
+		cy.window().then((win) => win.cur_frm.save());
+		cy.window().its("cur_frm.doc.__islocal").should("not.exist");
+
+		clickFormButton("Preview");
+		cy.get("[data-testid='campaign-preview'] tr[data-row]").should("have.length", 2);
+		cy.get("[data-testid='campaign-preview'] tr[data-row='R2']").should("contain", "R1");
+
+		clickFormButton("Create Goals");
+		cy.get(".modal:visible .btn-modal-primary").click();
+		cy.window().its("cur_frm.doc.status").should("eq", "Created");
+		cy.window().then((win) => {
+			const [lead, member] = win.cur_frm.doc.items;
+			expect([lead.status, member.status]).to.deep.eq(["Created", "Created"]);
+			return win.frappe.db.get_doc("Goal", member.root_goal).then((goal) => {
+				expect(goal.goal_owner).to.eq(OWNER);
+				expect(goal.parents.map((row) => row.parent_goal)).to.deep.eq([lead.root_goal]);
+				expect(goal.exp_start_date).to.eq(win.cur_frm.doc.period_start);
+				expect(goal.exp_end_date).to.eq(win.cur_frm.doc.period_end);
+			});
+		});
+		cy.window().then((win) => expect(win.cur_frm.custom_buttons[win.__("Create Goals")]).to.not.exist);
+
+		cy.window().then((win) => cy.wrap(win.cur_frm.doc.period_end).as("periodEnd"));
+		clickFormButton("Next Period");
+		cy.get("@periodEnd").then((end) => {
+			cy.window().should((win) => {
+				const doc = win.cur_frm.doc;
+				expect(doc.period_start).to.eq(win.frappe.datetime.add_days(end, 1));
+				expect(doc.status).to.eq("Draft");
+				expect(doc.title).to.include(doc.period_label);
+				expect(doc.items.map((row) => [row.status, row.parent_row || ""])).to.deep.eq([
+					["Pending", ""],
+					["Pending", "R1"],
+				]);
+			});
 		});
 	});
 });

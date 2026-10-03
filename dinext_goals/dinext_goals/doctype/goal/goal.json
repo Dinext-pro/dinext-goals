@@ -52,10 +52,12 @@
   "target_section",
   "target_source",
   "target_provider",
+  "target_provider_info",
   "target_formula",
   "source_section",
   "metric_source",
   "metric_provider",
+  "metric_provider_info",
   "linked_document_type",
   "aggregation",
   "linked_document_field",
@@ -395,11 +397,17 @@
   },
   {
    "fieldname": "target_provider",
-   "fieldtype": "Autocomplete",
+   "fieldtype": "Select",
    "label": "Target Provider",
    "description": "Provider that returns the target. Empty: the metric provider.",
    "depends_on": "eval:doc.target_source == 'Provider'",
    "read_only_depends_on": "eval:doc.status && doc.status != 'Draft'"
+  },
+  {
+   "depends_on": "eval:doc.target_source == 'Provider'",
+   "fieldname": "target_provider_info",
+   "fieldtype": "HTML",
+   "label": "Target Provider Logic"
   },
   {
    "depends_on": "eval:doc.target_source == 'Formula'",
@@ -427,8 +435,14 @@
   {
    "depends_on": "eval:doc.metric_source == 'Provider'",
    "fieldname": "metric_provider",
-   "fieldtype": "Autocomplete",
+   "fieldtype": "Select",
    "label": "Metric Provider"
+  },
+  {
+   "depends_on": "eval:doc.progress_method == 'Auto' && doc.metric_source == 'Provider'",
+   "fieldname": "metric_provider_info",
+   "fieldtype": "HTML",
+   "label": "Metric Provider Logic"
   },
   {
    "depends_on": "eval:doc.progress_method == 'Auto' && doc.metric_source == 'Linked Documents'",
@@ -565,7 +579,7 @@
    "link_fieldname": "goal"
   }
  ],
- "modified": "2026-10-03 12:00:00.000000",
+ "modified": "2026-10-03 13:14:23.639665",
  "modified_by": "Administrator",
  "module": "Dinext Goals",
  "name": "Goal",

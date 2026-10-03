@@ -1,30 +1,12 @@
 // Copyright (c) 2026, Dinext and contributors
 // For license information, please see license.txt
 
-const GOAL_TEMPLATE_PARAM_FIELDTYPES = {
-	Int: "Int",
-	Float: "Float",
-	Currency: "Currency",
-	Percent: "Percent",
-	Data: "Data",
-	Select: "Select",
-	Date: "Date",
-	Check: "Check",
-	Link: "Link",
-	"Link List": "MultiSelectList",
-};
-
 frappe.ui.form.on("Goal Template", {
 	setup(frm) {
-		frappe.call("dinext_goals.api.list_metric_providers").then((r) => {
-			const rows = r.message || [];
-			const option = (p) => ({ value: p.key, label: p.label });
-			frm.fields_dict.items.grid.update_docfield_property("metric_provider", "options", rows.map(option));
-			frm.fields_dict.items.grid.update_docfield_property(
-				"target_provider",
-				"options",
-				rows.filter((p) => p.supports_target).map(option)
-			);
+		dinext_goals.load_providers().then((rows) => {
+			const grid = frm.fields_dict.items.grid;
+			grid.update_docfield_property("metric_provider", "options", dinext_goals.provider_options(rows, "metric"));
+			grid.update_docfield_property("target_provider", "options", dinext_goals.provider_options(rows, "target"));
 		});
 	},
 
@@ -35,31 +17,38 @@ frappe.ui.form.on("Goal Template", {
 		frm.add_custom_button(__("Create Goals"), () => dinext_goals_open_create_dialog(frm)).addClass(
 			"btn-primary"
 		);
+		if (frappe.model.can_create("Goal Campaign")) {
+			frm.add_custom_button(__("Bulk Create"), () =>
+				frappe.new_doc("Goal Campaign", { default_template: frm.doc.name })
+			);
+		}
 	},
 });
 
-function dinext_goals_param_field(param) {
-	const field = {
-		fieldname: `param__${param.code}`,
-		label: __(param.label || param.code),
-		fieldtype: GOAL_TEMPLATE_PARAM_FIELDTYPES[param.param_type] || "Data",
-		description: param.description ? __(param.description) : "",
-		default: param.default,
-	};
-	if (param.param_type === "Select") {
-		field.options = ["", ...(param.select_options || "").split("\n").filter(Boolean)].join("\n");
+frappe.ui.form.on("Goal Template Item", {
+	form_render(frm, cdt, cdn) {
+		dinext_goals_render_item_providers(frm, cdt, cdn);
+	},
+	metric_source: dinext_goals_render_item_providers,
+	metric_provider: dinext_goals_render_item_providers,
+	target_source: dinext_goals_render_item_providers,
+	target_provider: dinext_goals_render_item_providers,
+});
+
+function dinext_goals_render_item_providers(frm, cdt, cdn) {
+	const row = frm.fields_dict.items.grid.grid_rows_by_docname[cdn];
+	const form = row && row.grid_form;
+	if (!form) {
+		return;
 	}
-	if (param.param_type === "Link") {
-		field.options = param.link_doctype;
-	}
-	if (param.param_type === "Link List") {
-		field.get_data = (txt) => frappe.db.get_link_options(param.link_doctype, txt);
-		field.default = Array.isArray(param.default) ? param.default : [];
-	}
-	if (param.param_type === "Percent" && typeof param.default === "number") {
-		field.default = param.default * 100;
-	}
-	return field;
+	const wrapper = (fieldname) => form.fields_dict[fieldname] && form.fields_dict[fieldname].$wrapper;
+	dinext_goals.load_providers().then((providers) =>
+		dinext_goals.render_provider_cards(
+			{ metric: wrapper("metric_provider_info"), target: wrapper("target_provider_info") },
+			locals[cdt][cdn],
+			providers
+		)
+	);
 }
 
 async function dinext_goals_open_create_dialog(frm) {
@@ -82,7 +71,7 @@ async function dinext_goals_open_create_dialog(frm) {
 	];
 	if (params.length) {
 		fields.push({ fieldname: "parameters_section", fieldtype: "Section Break", label: __("Parameters") });
-		params.forEach((param) => fields.push(dinext_goals_param_field(param)));
+		params.forEach((param) => fields.push(dinext_goals.param_field(param)));
 	}
 
 	const dialog = new frappe.ui.Dialog({
@@ -91,16 +80,7 @@ async function dinext_goals_open_create_dialog(frm) {
 		size: "large",
 		primary_action_label: __("Create"),
 		primary_action: async (values) => {
-			const paramValues = {};
-			params.forEach((param) => {
-				let value = values[`param__${param.code}`];
-				if (param.param_type === "Percent" && value !== undefined && value !== null && value !== "") {
-					value = Number(value);
-				}
-				if (value !== undefined) {
-					paramValues[param.code] = value;
-				}
-			});
+			const paramValues = dinext_goals.param_values(params, values);
 			dialog.disable_primary_action();
 			try {
 				const res = await frappe.call({
