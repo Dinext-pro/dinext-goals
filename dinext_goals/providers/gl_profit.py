@@ -85,6 +85,13 @@ class GLProfitProvider(MetricProvider):
 	key = "gl_profit"
 	label = "Gross profit (GL)"
 	description = "Income minus expense from GL entries of the projects parameter, or of the cost_center parameter (with child cost centers) when no projects are set."
+	details = (
+		"Source: submitted GL entries posted in the period (from the planned start to the earlier of today and the planned end).",
+		"Value: credit minus debit of Income accounts minus debit minus credit of Expense accounts.",
+		"Filter: the projects parameter; when it is empty, the cost_center parameter with its child cost centers.",
+		"Excluded: cancelled entries, period closing vouchers, opening entries and entries of a finance book other than the company default; reversals net with the reversed entry.",
+		"Without a goal company all entries must share one company currency.",
+	)
 	params = (
 		{"code": "cost_center", "param_type": "Link", "link_doctype": "Cost Center", "required": False},
 		{"code": "projects", "param_type": "Link List", "link_doctype": "Project", "required": False},

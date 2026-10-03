@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 dinext_goals.patches.v1_0.flip_goal_deviation
 dinext_goals.patches.v1_0.backfill_goal_projects
+dinext_goals.patches.v1_0.rename_generic_templates

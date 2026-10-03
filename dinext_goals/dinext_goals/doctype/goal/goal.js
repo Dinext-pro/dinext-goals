@@ -46,31 +46,47 @@
 		},
 
 		metric_provider(frm) {
+			render_provider_cards(frm);
 			render_effective_params(frm);
 		},
 
 		target_provider(frm) {
+			render_provider_cards(frm);
 			render_effective_params(frm);
+		},
+
+		metric_source(frm) {
+			render_provider_cards(frm);
+		},
+
+		target_source(frm) {
+			render_provider_cards(frm);
 		},
 	});
 
 	function load_providers() {
-		if (providers) {
-			return Promise.resolve(providers);
-		}
-		return frappe.xcall("dinext_goals.api.list_metric_providers").then((rows) => {
-			providers = rows || [];
-			return providers;
+		return dinext_goals.load_providers().then((rows) => {
+			providers = rows;
+			return rows;
 		});
 	}
 
-	function provider_option(p) {
-		return { value: p.key, label: p.available ? p.label : `${p.label} (${__("unavailable")})` };
+	function set_provider_options(frm) {
+		frm.set_df_property("metric_provider", "options", dinext_goals.provider_options(providers || [], "metric"));
+		frm.set_df_property("target_provider", "options", dinext_goals.provider_options(providers || [], "target"));
+		render_provider_cards(frm);
 	}
 
-	function set_provider_options(frm) {
-		frm.set_df_property("metric_provider", "options", (providers || []).map(provider_option));
-		frm.set_df_property("target_provider", "options", (providers || []).filter((p) => p.supports_target).map(provider_option));
+	function render_provider_cards(frm) {
+		if (!providers) {
+			return;
+		}
+		const wrapper = (fieldname) => frm.get_field(fieldname) && frm.get_field(fieldname).$wrapper;
+		dinext_goals.render_provider_cards(
+			{ metric: wrapper("metric_provider_info"), target: wrapper("target_provider_info") },
+			frm.doc,
+			providers
+		);
 	}
 
 	function can_write(frm) {

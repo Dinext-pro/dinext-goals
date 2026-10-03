@@ -60,6 +60,12 @@ class ProjectBudgetProfitProvider(MetricProvider):
 	key = "project_budget_profit"
 	label = "Planned project profit (budget)"
 	description = "Income budget minus expense budget of the projects parameter for the months overlapping the period; as a target, the planned period of the goal."
+	details = (
+		"Source: Project Budget of the projects parameter (Dinext Projects P&L).",
+		"Value: plan amounts of Income budget accounts minus plan amounts of Expense budget accounts.",
+		"As the fact: the budget months overlapping the period from the planned start to the earlier of today and the planned end.",
+		"As the target: the budget months overlapping the planned period of the goal.",
+	)
 	params = ({"code": "projects", "param_type": "Link List", "link_doctype": "Project", "required": True},)
 	supports_target = True
 

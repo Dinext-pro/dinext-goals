@@ -48,9 +48,9 @@ fixtures = [
 				"name",
 				"in",
 				[
-					"Квартальный бонус менеджера",
-					"Квартальный бонус специалиста",
-					"Ежемесячная премия",
+					"Бонус руководителя подразделения",
+					"Бонус сотрудника",
+					"Премия за утилизацию",
 					"Проектный бонус",
 				],
 			],
@@ -65,6 +65,9 @@ has_permission = {
 
 doctype_js = {
 	"Project": "public/js/project_goals.js",
+	"Goal": "public/js/goals_common.js",
+	"Goal Template": "public/js/goals_common.js",
+	"Goal Campaign": "public/js/goals_common.js",
 }
 
 override_doctype_dashboards = {
