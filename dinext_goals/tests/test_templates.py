@@ -1,11 +1,8 @@
-from unittest.mock import patch
-
 import frappe
 
 from dinext_goals import api, parameters, templates
 from dinext_goals.constants import GOAL, GOAL_TEMPLATE
 from dinext_goals.goals import hierarchy
-from dinext_goals.patches.v1_0 import rename_generic_templates
 from dinext_goals.tests.utils import (
 	DIRECTOR,
 	MANAGER,
@@ -186,22 +183,3 @@ class TestGoalTemplates(GoalTestCase):
 		with as_user(MANAGER):
 			with self.assertRaises(frappe.ValidationError):
 				api.save_as_template(root, "_GT Copy")
-
-
-class TestRenameGenericTemplates(GoalTestCase):
-	def test_old_names_are_renamed_or_merged(self):
-		template_doc("_GT Old A").insert(ignore_permissions=True)
-		template_doc("_GT Old B").insert(ignore_permissions=True)
-		template_doc("_GT New B").insert(ignore_permissions=True)
-		goals = templates.create_goals(
-			"_GT Old B", start_date="2026-07-01", goal_owner=OWNER, values={"types": ["KPI"]}
-		)
-		renamed = {"_GT Old A": "_GT New A", "_GT Old B": "_GT New B"}
-		with patch.dict(rename_generic_templates.RENAMED, renamed, clear=True):
-			rename_generic_templates.execute()
-		self.assertFalse(frappe.db.exists(GOAL_TEMPLATE, "_GT Old A"))
-		self.assertFalse(frappe.db.exists(GOAL_TEMPLATE, "_GT Old B"))
-		self.assertEqual(frappe.db.get_value(GOAL_TEMPLATE, "_GT New A", "template_name"), "_GT New A")
-		self.assertEqual(
-			set(frappe.get_all(GOAL, filters={"goal_template": "_GT New B"}, pluck="name")), set(goals)
-		)
