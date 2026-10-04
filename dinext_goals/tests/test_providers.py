@@ -225,10 +225,18 @@ class TestGLProfit(GoalTestCase):
 			progress_method="Auto",
 			metric_source="Provider",
 			metric_provider="gl_profit",
+			company=COMPANY,
 			exp_start_date="2026-03-01",
 			exp_end_date="2026-03-31",
 		)
-		self.assertEqual(goal.current_value, 740)
+		# insert() can return the pre-save value; the persisted row is what the provider wrote.
+		goal = self.reload(goal.name)
+		resolved = api.get_effective_parameters(goal.name)
+		self.assertEqual(
+			goal.current_value,
+			740,
+			f"company={goal.company} params={resolved}",
+		)
 		self.assertEqual(goal.achievement_percent, 74)
 
 
