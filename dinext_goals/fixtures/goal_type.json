@@ -1,0 +1,47 @@
+[
+ {
+  "color": "#5e64ff",
+  "description": "Objective with key results",
+  "docstatus": 0,
+  "doctype": "Goal Type",
+  "goal_type_name": "OKR",
+  "modified": "2026-10-02 03:17:35.674042",
+  "name": "OKR"
+ },
+ {
+  "color": "#29cd42",
+  "description": "Key performance indicator",
+  "docstatus": 0,
+  "doctype": "Goal Type",
+  "goal_type_name": "KPI",
+  "modified": "2026-10-02 03:17:35.867767",
+  "name": "KPI"
+ },
+ {
+  "color": "#ffa00a",
+  "description": "Goal of a project",
+  "docstatus": 0,
+  "doctype": "Goal Type",
+  "goal_type_name": "Project Goal",
+  "modified": "2026-10-02 03:17:35.871113",
+  "name": "Project Goal"
+ },
+ {
+  "color": "#7575ff",
+  "description": "Personal development goal",
+  "docstatus": 0,
+  "doctype": "Goal Type",
+  "goal_type_name": "Personal",
+  "modified": "2026-10-02 03:17:35.873827",
+  "name": "Personal"
+ },
+ {
+  "color": "#ff5858",
+  "description": "Strategic company goal",
+  "docstatus": 0,
+  "doctype": "Goal Type",
+  "goal_type_name": "Strategic",
+  "modified": "2026-10-02 03:17:35.876412",
+  "name": "Strategic"
+ }
+]

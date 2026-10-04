@@ -1,0 +1,26 @@
+{
+ "content": null,
+ "creation": "2026-10-02 03:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "icon": "organization",
+ "idx": 0,
+ "modified": "2026-10-02 03:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "goal-map",
+ "owner": "Administrator",
+ "page_name": "goal-map",
+ "roles": [
+  {"role": "Goal Manager"},
+  {"role": "Goal Owner"},
+  {"role": "Goal Approver"},
+  {"role": "Goal Finance Approver"},
+  {"role": "System Manager"}
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Goal Map"
+}

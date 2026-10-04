@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "creation": "2026-10-02 03:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "yellow_threshold",
+  "red_threshold",
+  "column_break_main",
+  "enable_daily_recalculation",
+  "show_linked_documents_on_map",
+  "show_top_goal_in_navbar"
+ ],
+ "fields": [
+  {
+   "default": "10",
+   "description": "Yellow when planned progress exceeds actual progress by more than this many percentage points.",
+   "fieldname": "yellow_threshold",
+   "fieldtype": "Float",
+   "label": "Yellow Threshold, p.p."
+  },
+  {
+   "default": "25",
+   "description": "Red when planned progress exceeds actual progress by more than this many percentage points, or the goal is overdue.",
+   "fieldname": "red_threshold",
+   "fieldtype": "Float",
+   "label": "Red Threshold, p.p."
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_daily_recalculation",
+   "fieldtype": "Check",
+   "label": "Recalculate Active Goals Daily"
+  },
+  {
+   "default": "0",
+   "fieldname": "show_linked_documents_on_map",
+   "fieldtype": "Check",
+   "label": "Show Linked Documents on Goal Map by Default"
+  },
+  {
+   "default": "0",
+   "description": "Each user sees the actual value of their top-level goal active today in the Desk toolbar.",
+   "fieldname": "show_top_goal_in_navbar",
+   "fieldtype": "Check",
+   "label": "Show Top Goal in Navbar"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-03 14:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goals Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Goal Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Goal Owner"
+  },
+  {
+   "read": 1,
+   "role": "Goal Approver"
+  },
+  {
+   "read": 1,
+   "role": "Goal Finance Approver"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
