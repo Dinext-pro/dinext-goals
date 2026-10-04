@@ -216,28 +216,35 @@ def _route_options(filters: dict | list) -> dict:
 
 
 def _linked_card(row) -> dict | None:
-	if (
-		row.is_group
-		or row.progress_method != "Auto"
-		or (row.metric_source or "Linked Documents") != "Linked Documents"
-	):
+	"""The fact drill-down list drawn under a goal. Groups stay without a card."""
+	if row.is_group or row.progress_method != "Auto":
 		return None
-	if not row.linked_document_type:
+	tile = "progress" if row.metric_type == "Boolean" else "actual"
+	opened = drilldown.get_metric_drilldown(frappe.get_doc(GOAL, row.name), tile)
+	if opened.get("restricted"):
+		return {"doctype": opened.get("doctype"), "restricted": 1}
+	if opened.get("kind") != "list":
 		return None
 	card = {
-		"doctype": row.linked_document_type,
-		"aggregation": row.aggregation or "Sum",
-		"field": row.linked_document_field,
+		"doctype": opened["doctype"],
+		"count": len(
+			frappe.get_all(
+				opened["doctype"],
+				filters=opened.get("filters") or {},
+				pluck="name",
+				limit_page_length=0,
+			)
+		),
+		"route_options": opened.get("filters") or {},
 	}
+	if opened.get("note"):
+		card["note"] = opened["note"]
+	if (row.metric_source or "Linked Documents") != "Linked Documents":
+		return card
+	card["aggregation"] = row.aggregation or "Sum"
+	card["field"] = row.linked_document_field
 	try:
-		params = parameters.get_effective_params(row.name)
-		filters = sources.linked_filters(row, params)
-		if not frappe.has_permission(row.linked_document_type, "read"):
-			card["restricted"] = 1
-			return card
-		card["count"] = frappe.db.count(row.linked_document_type, filters)
-		card["value"] = sources.linked_documents_value(row, params)
-		card["route_options"] = _route_options(filters)
+		card["value"] = sources.linked_documents_value(row, parameters.get_effective_params(row.name))
 	except frappe.ValidationError as exc:
 		frappe.clear_last_message()
 		card["error"] = str(exc)

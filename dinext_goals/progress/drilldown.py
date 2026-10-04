@@ -226,7 +226,10 @@ def _open(doctype: str | None, filters, note: str | None = None) -> dict:
 	if not doctype or not frappe.db.exists("DocType", doctype):
 		return _message(_("DocType {0} does not exist").format(doctype or ""))
 	if not frappe.has_permission(doctype, "read"):
-		return _message(_("You are not allowed to read {0}").format(_(doctype)))
+		denied = _message(_("You are not allowed to read {0}").format(_(doctype)))
+		denied["restricted"] = 1
+		denied["doctype"] = doctype
+		return denied
 	payload = {"kind": "list", "doctype": doctype, "filters": _plain(as_route_options(filters))}
 	if note:
 		payload["note"] = note

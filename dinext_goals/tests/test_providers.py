@@ -313,6 +313,29 @@ class TestProjectBudget(GoalTestCase):
 		self.assertEqual(opened["note"], month_note("2026-07-01", "2026-09-30"))
 		self.assertEqual(set(period_months("2026-07-01", "2026-09-30")), {(2026, 7), (2026, 8), (2026, 9)})
 
+	def test_map_card_uses_the_fact_budget_list(self):
+		goal = make_goal(
+			"Budget fact",
+			params=[param("projects", "Link List", [PROJECT], link_doctype="Project")],
+			progress_method="Auto",
+			metric_source="Provider",
+			metric_provider="project_budget_profit",
+			target_source="Provider",
+			target_provider="project_budget_profit",
+			exp_start_date="2026-07-01",
+			exp_end_date="2026-09-30",
+		)
+		opened = api.get_metric_drilldown(goal.name, "actual")
+		card = api.get_goal_map(root=goal.name, show_linked=1, status="")["trees"][0]["linked"]
+		self.assertEqual(card["doctype"], "Project Budget")
+		self.assertEqual(card["route_options"], opened["filters"])
+		self.assertEqual(card["note"], opened["note"])
+		self.assertEqual(
+			card["count"],
+			len(frappe.get_all("Project Budget", filters=opened["filters"], pluck="name", limit_page_length=0)),
+		)
+		self.assertNotIn("aggregation", card)
+
 
 class TestTimesheetUtilization(GoalTestCase):
 	"""Values come from the stored totals of User Timesheet; the provider does not plan hours."""
@@ -447,3 +470,7 @@ class TestEnergyPoints(GoalTestCase):
 		self.assertEqual(dialog["kind"], "dialog")
 		self.assertEqual(dialog["expression"], "params.points_plan")
 		self.assertEqual(dialog["links"], [])
+		card = api.get_goal_map(root=goal.name, show_linked=1, status="")["trees"][0]["linked"]
+		self.assertEqual(card["doctype"], "Energy Point Log")
+		self.assertEqual(card["route_options"], opened["filters"])
+		self.assertEqual(card["count"], 1)

@@ -133,6 +133,54 @@ class TestMetricDrilldown(GoalTestCase):
 		text = api.get_metric_drilldown(goal.name, "planned")["text"].lower()
 		self.assertIn("planned progress", text)
 
+	def test_map_card_follows_the_fact_list(self):
+		parent = make_group("Map")
+		listed = make_goal(
+			"Listed",
+			parents=[parent.name],
+			progress_method="Auto",
+			metric_source="Python Rule",
+			calculation_rule="1",
+			calculation_drilldown_rule='documents("Goal", {"status": "Draft"})',
+		)
+		bare = make_goal(
+			"Bare",
+			parents=[parent.name],
+			progress_method="Auto",
+			metric_source="Python Rule",
+			calculation_rule="1",
+		)
+		manual = make_goal("Typed", parents=[parent.name])
+		tree = api.get_goal_map(root=parent.name, show_linked=1, status="")["trees"][0]
+		self.assertIsNone(tree["linked"])
+		by_name = {child["name"]: child for child in tree["children"]}
+		opened = api.get_metric_drilldown(listed.name, "actual")
+		card = by_name[listed.name]["linked"]
+		self.assertEqual(card["doctype"], opened["doctype"])
+		self.assertEqual(card["route_options"], opened["filters"])
+		self.assertEqual(
+			card["count"],
+			len(frappe.get_all(GOAL, filters=opened["filters"], pluck="name", limit_page_length=0)),
+		)
+		self.assertNotIn("note", card)
+		self.assertNotIn("calculation_drilldown_rule", by_name[listed.name])
+		self.assertIsNone(by_name[bare.name]["linked"])
+		self.assertIsNone(by_name[manual.name]["linked"])
+
+	def test_map_card_stays_closed_without_read_permission(self):
+		goal = make_goal(
+			"Closed card",
+			progress_method="Auto",
+			metric_source="Linked Documents",
+			linked_document_type=GOAL,
+			aggregation="Count",
+		)
+		with patch("dinext_goals.progress.drilldown.frappe.has_permission", return_value=False):
+			card = api.get_goal_map(root=goal.name, show_linked=1, status="")["trees"][0]["linked"]
+		self.assertEqual(card["restricted"], 1)
+		self.assertEqual(card["doctype"], GOAL)
+		self.assertNotIn("route_options", card)
+
 	def test_missing_read_permission_does_not_open_the_list(self):
 		goal = make_goal(
 			"Hidden source",
