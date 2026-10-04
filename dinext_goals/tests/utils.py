@@ -202,6 +202,43 @@ def make_project(name: str, company: str = "Dinext") -> str:
 	return name
 
 
+def _first_existing(doctype: str, names: tuple[str, ...]) -> str | None:
+	for name in names:
+		if frappe.db.exists(doctype, name):
+			return name
+	return frappe.db.get_value(doctype, {}, "name")
+
+
+def ensure_dinext_company() -> None:
+	"""Company, chart and root cost center the provider tests address by name.
+
+	The CI seed has no ``Dinext`` company. Creation is committed so a later test
+	rollback does not drop the chart of accounts.
+	"""
+	if (
+		frappe.db.exists("Company", "Dinext")
+		and frappe.db.exists("Cost Center", "Dinext - D")
+		and frappe.db.exists("Account", "Sales - D")
+	):
+		return
+	currency = _first_existing("Currency", ("RUB", "USD", "EUR"))
+	country = _first_existing("Country", ("Russia", "Russian Federation"))
+	if not currency or not country:
+		frappe.throw("CI site has no Currency or Country for the Dinext test company")
+	frappe.get_doc(
+		{
+			"doctype": "Company",
+			"company_name": "Dinext",
+			"abbr": "D",
+			"default_currency": currency,
+			"country": country,
+			"chart_of_accounts": "Standard",
+			"create_chart_of_accounts_based_on": "Standard Template",
+		}
+	).insert(ignore_permissions=True)
+	frappe.db.commit()
+
+
 def _parallel_approval_installed() -> bool:
 	"""True when dinext_common ships the parallel approval package.
 
@@ -225,6 +262,7 @@ class GoalTestCase(FrappeTestCase):
 	def setUpClass(cls):
 		super().setUpClass()
 		frappe.set_user("Administrator")
+		ensure_dinext_company()
 		ensure_users()
 
 	@classmethod
@@ -245,6 +283,12 @@ class GoalTestCase(FrappeTestCase):
 			notifier = patch("dinext_common.workflow_approval.notifications.send_immediate_notification")
 			notifier.start()
 			self.addCleanup(notifier.stop)
+		# Standard Frappe workflow mail attaches a print. The CI image has no built website assets.
+		workflow_mail = patch(
+			"frappe.workflow.doctype.workflow_action.workflow_action.send_workflow_action_email"
+		)
+		workflow_mail.start()
+		self.addCleanup(workflow_mail.stop)
 		frappe.set_user("Administrator")
 		frappe.db.savepoint(self.SAVEPOINT)
 
