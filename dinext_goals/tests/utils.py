@@ -6,6 +6,7 @@ documents are recreated per test and never reach the site.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from functools import cache
 from unittest.mock import patch
@@ -224,9 +225,11 @@ class GoalTestCase(FrappeTestCase):
 		if hasattr(frappe.local, "dinext_goals_visible_goals"):
 			delattr(frappe.local, "dinext_goals_visible_goals")
 		# Tests run background jobs inline; approval e-mails would need an outgoing Email Account.
-		notifier = patch("dinext_common.workflow_approval.notifications.send_immediate_notification")
-		notifier.start()
-		self.addCleanup(notifier.stop)
+		# The parallel engine lives on dinext_common feat/dinext_workflow and is absent from the CI seed.
+		if importlib.util.find_spec("dinext_common.workflow_approval.notifications") is not None:
+			notifier = patch("dinext_common.workflow_approval.notifications.send_immediate_notification")
+			notifier.start()
+			self.addCleanup(notifier.stop)
 		frappe.set_user("Administrator")
 		frappe.db.savepoint(self.SAVEPOINT)
 

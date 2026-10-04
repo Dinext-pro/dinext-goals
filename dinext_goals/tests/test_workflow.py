@@ -2,7 +2,11 @@ import json
 from unittest.mock import patch
 
 import frappe
-from dinext_common.workflow_approval import api as workflow_api
+
+try:
+	from dinext_common.workflow_approval import api as workflow_api
+except ImportError:
+	workflow_api = None
 
 from dinext_goals import api as goals_api
 from dinext_goals.constants import GOAL, ROLE_FINANCE, STATUS_ACTIVE, STATUS_DRAFT, STATUS_FOR_APPROVAL
@@ -46,6 +50,11 @@ def state(goal):
 
 
 class TestGoalApproval(GoalTestCase):
+	def setUp(self):
+		super().setUp()
+		if workflow_api is None and self._testMethodName != "test_nobody_can_approve":
+			self.skipTest("dinext_common.workflow_approval is not installed")
+
 	def _tree(self, **leaf_values):
 		root = make_group("Director goal", owner=DIRECTOR)
 		middle = make_group("Manager goal", owner=MANAGER, parents=[root.name])
