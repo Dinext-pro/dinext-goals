@@ -46,6 +46,9 @@ const TOOLBOX_ICONS = {
 	fit_height: "path://M3 1.5h10M3 14.5h10M8 4v8M5.5 6.5 8 4l2.5 2.5M5.5 9.5 8 12l2.5-2.5",
 	expand_all: "path://M3 6.5 8 1.5l5 5M3 9.5l5 5 5-5",
 	collapse_all: "path://M3 1.5l5 5 5-5M3 14.5l5-5 5 5",
+	linked: "path://M1.5 2.5h8v8h-8zM6.5 5.5h8v8h-8z",
+	orient_tb: "path://M3 2h10M8 2v10.5M5 9.5 8 13l3-3.5",
+	orient_lr: "path://M2 3v10M2 8h10.5M9.5 5 13 8l-3.5 3",
 };
 const TOOLBOX = { top: 12, right: 12, itemSize: 16, itemGap: 12 };
 
@@ -157,6 +160,7 @@ export class GoalMap {
 		this.avatars = {};
 		this.zoom = 1;
 		this.orient = localStorage.getItem(ORIENT_KEY) === "LR" ? "LR" : "TB";
+		this.show_linked = false;
 		this.make_filters();
 		this.make_body();
 		this.ready = new Promise((resolve) => frappe.require(ECHARTS_ASSETS, resolve)).then(() => this.make_chart());
@@ -227,30 +231,7 @@ export class GoalMap {
 				options: "Project",
 				change: reload,
 			}),
-			show_linked: this.page.add_field({
-				fieldname: "show_linked",
-				label: __("Show Linked Documents"),
-				fieldtype: "Check",
-				change: reload,
-			}),
 		};
-		this.orient_field = this.page.add_field({
-			fieldname: "orient",
-			label: __("Layout"),
-			fieldtype: "Select",
-			options: [
-				{ label: __("Top to Bottom"), value: "TB" },
-				{ label: __("Left to Right"), value: "LR" },
-			],
-			default: this.orient,
-			change: () => {
-				const value = this.orient_field.get_value() === "LR" ? "LR" : "TB";
-				if (value === this.orient) return;
-				this.orient = value;
-				localStorage.setItem(ORIENT_KEY, value);
-				this.render({ fit: true });
-			},
-		});
 		this.page.set_primary_action(__("Refresh"), reload, "refresh");
 		this.filters.status.set_options();
 		this.filters.status.set_value(["Active"]);
@@ -282,8 +263,27 @@ export class GoalMap {
 		this.render({ fit: true });
 	}
 
+	set_orient(value) {
+		const orient = value === "LR" ? "LR" : "TB";
+		if (orient === this.orient) return;
+		this.orient = orient;
+		localStorage.setItem(ORIENT_KEY, orient);
+		this.render({ fit: true });
+	}
+
+	toggle_linked() {
+		this.show_linked = !this.show_linked;
+		this.load();
+	}
+
 	toolbox_option(colors) {
-		const feature = (title, icon, onclick) => ({ show: true, title, icon, onclick });
+		const feature = (title, icon, onclick, active) => ({
+			show: true,
+			title,
+			icon,
+			onclick,
+			...(active == null ? {} : { iconStyle: { borderColor: active ? colors.text : colors.muted } }),
+		});
 		return {
 			show: true,
 			...TOOLBOX,
@@ -299,6 +299,24 @@ export class GoalMap {
 				myFitHeight: feature(__("Fit to Height"), TOOLBOX_ICONS.fit_height, () => this.fit("height")),
 				myExpandAll: feature(__("Expand All"), TOOLBOX_ICONS.expand_all, () => this.expand_all()),
 				myCollapseAll: feature(__("Collapse All"), TOOLBOX_ICONS.collapse_all, () => this.collapse_all()),
+				myShowLinked: feature(
+					__("Show Linked Documents"),
+					TOOLBOX_ICONS.linked,
+					() => this.toggle_linked(),
+					this.show_linked
+				),
+				myOrientTB: feature(
+					__("Top to Bottom"),
+					TOOLBOX_ICONS.orient_tb,
+					() => this.set_orient("TB"),
+					this.orient === "TB"
+				),
+				myOrientLR: feature(
+					__("Left to Right"),
+					TOOLBOX_ICONS.orient_lr,
+					() => this.set_orient("LR"),
+					this.orient === "LR"
+				),
 				saveAsImage: {
 					title: __("Save as Image"),
 					name: this.image_name(),
@@ -338,7 +356,7 @@ export class GoalMap {
 	}
 
 	get_filters() {
-		const values = { status: this.filters.status.get_value() || [] };
+		const values = { status: this.filters.status.get_value() || [], show_linked: this.show_linked ? 1 : 0 };
 		Object.entries(this.filters).forEach(([key, field]) => {
 			const value = field.get_value();
 			if (key !== "status" && (Array.isArray(value) ? value.length : value)) values[key] = value;

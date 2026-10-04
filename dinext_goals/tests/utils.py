@@ -220,6 +220,9 @@ class GoalTestCase(FrappeTestCase):
 
 	def setUp(self):
 		super().setUp()
+		# The visibility set is cached on the request, and the test runner keeps one request.
+		if hasattr(frappe.local, "dinext_goals_visible_goals"):
+			delattr(frappe.local, "dinext_goals_visible_goals")
 		# Tests run background jobs inline; approval e-mails would need an outgoing Email Account.
 		notifier = patch("dinext_common.workflow_approval.notifications.send_immediate_notification")
 		notifier.start()

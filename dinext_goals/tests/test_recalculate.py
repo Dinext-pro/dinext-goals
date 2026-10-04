@@ -116,10 +116,12 @@ class TestGoalMap(GoalTestCase):
 		self.assertNotIn(self.middle.name, roots)
 
 	def test_map_follows_read_permission(self):
-		with as_user(OUTSIDER):
+		with as_user(OWNER):
 			self.assertEqual(
 				api.get_goal_map(root=self.root.name, status="")["trees"][0]["name"], self.root.name
 			)
+		with as_user(OUTSIDER), self.assertRaises(frappe.PermissionError):
+			api.get_goal_map(root=self.root.name, status="")
 
 	def test_default_status_filter(self):
 		for goal in (self.root, self.middle):

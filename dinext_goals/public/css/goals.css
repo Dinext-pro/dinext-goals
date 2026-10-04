@@ -160,6 +160,20 @@
 	color: var(--text-color);
 }
 
+/* Eight map filters share one row on desktop; below 992px they keep the page's col-md-2 wrap. */
+@media (min-width: 992px) {
+	[data-page-route="goal-map"] .page-form.row {
+		flex-wrap: nowrap;
+	}
+
+	[data-page-route="goal-map"] .page-form.row > .col-md-2 {
+		flex: 1 1 0;
+		max-width: none;
+		width: auto;
+		min-width: 0;
+	}
+}
+
 /* Goal map */
 .dinext-goal-map {
 	--dinext-goal-map-bg: var(--subtle-fg, #f3f3f3);
