@@ -618,7 +618,8 @@ export class GoalMap {
 	linked_item(p, colors) {
 		const card = p.node.linked_card;
 		const f = this.fitter;
-		const lines = [`{title|${f.truncate(__(card.doctype), INNER_W, STYLE.title)}}`, `{small|${f.truncate(__("Linked documents"), INNER_W, STYLE.small)}}`];
+		const subtitle = card.note || __("Linked documents");
+		const lines = [`{title|${f.truncate(__(card.doctype), INNER_W, STYLE.title)}}`, `{small|${f.truncate(subtitle, INNER_W, STYLE.small)}}`];
 		if (card.restricted) {
 			lines.push(`{small|${f.truncate(__("No access to these documents"), INNER_W, STYLE.small)}}`, "{small| }");
 		} else if (card.error) {
@@ -642,7 +643,7 @@ export class GoalMap {
 			itemStyle: { color: colors.card, borderColor: colors.link, borderWidth: 1, borderType: [5, 4], shadowBlur: 4, shadowColor: colors.shadow },
 			full: lines.join("\n"),
 			mini: card.restricted || card.error ? "" : this.mini_text(fmt(card.count, 0), "link"),
-			tip: esc(card.error || __(card.doctype)),
+			tip: esc(card.error || card.note || __(card.doctype)),
 		};
 	}
 
