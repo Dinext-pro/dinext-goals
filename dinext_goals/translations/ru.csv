@@ -426,3 +426,7 @@
 "Row","Строка","Goal Campaign Item"
 "Rows","Строки","Goal Campaign"
 "Metric Provider Logic","Логика провайдера факта","Goal Template Item"
+"Achievement","Достижение",""
+"Open the goal map","Открыть карту целей",""
+"Show Top Goal in Navbar","Показывать верхнюю цель в тулбаре",""
+"Each user sees the actual value of their top-level goal active today in the Desk toolbar.","Каждый пользователь видит в верхней панели Desk факт своей верхнеуровневой цели, активной на сегодня.",""

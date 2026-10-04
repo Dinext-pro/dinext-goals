@@ -11,7 +11,14 @@ from frappe import _
 from frappe.utils import cint, flt, get_last_day, getdate, nowdate
 
 from dinext_goals import parameters, templates
-from dinext_goals.constants import GOAL, GOAL_LOG, LOG_SOURCE_MANUAL, STATUS_ACTIVE, STATUS_CANCELLED
+from dinext_goals.constants import (
+	GOAL,
+	GOAL_LOG,
+	LOG_SOURCE_MANUAL,
+	SETTINGS,
+	STATUS_ACTIVE,
+	STATUS_CANCELLED,
+)
 from dinext_goals.goals import hierarchy, lifecycle
 from dinext_goals.progress import engine, planning, sources
 from dinext_goals.providers import list_providers
@@ -407,3 +414,48 @@ def get_map_roots(txt: str | None = None, status: str | None = None) -> list[dic
 	return frappe.get_all(
 		GOAL, filters=filters, fields=["name", "subject", "status"], order_by="exp_start_date desc", limit=50
 	)
+
+
+NAVBAR_FIELDS = [
+	"name",
+	"subject",
+	"is_group",
+	"metric_type",
+	"current_value",
+	"target",
+	"unit",
+	"currency",
+	"progress",
+	"achievement_percent",
+	"rag_status",
+	"weight",
+	"exp_start_date",
+]
+
+
+@frappe.whitelist()
+def get_navbar_goal() -> dict | None:
+	"""The user's own Active goal covering today with the fewest ancestor levels."""
+	if not cint(frappe.db.get_single_value(SETTINGS, "show_top_goal_in_navbar")):
+		return None
+	if not frappe.has_permission(GOAL, "read"):
+		return None
+	today = nowdate()
+	candidates = frappe.get_all(
+		GOAL,
+		filters={"goal_owner": frappe.session.user, "status": STATUS_ACTIVE, "exp_start_date": ["<=", today]},
+		or_filters=[["exp_end_date", "is", "not set"], ["exp_end_date", ">=", today]],
+		fields=NAVBAR_FIELDS,
+	)
+	if not candidates:
+		return None
+	parents = hierarchy.get_parents_of(row.name for row in candidates)
+
+	def rank(row):
+		depth = len(hierarchy.ancestor_levels(row.name, parents[row.name]))
+		return (depth, -cint(row.is_group), -flt(row.weight), getdate(row.exp_start_date), row.name)
+
+	top = min(candidates, key=rank)
+	top.pop("weight")
+	top.pop("exp_start_date")
+	return top

@@ -252,3 +252,24 @@
 .dinext-goal-provider-params {
 	margin: 4px 0 0;
 }
+
+.dinext-goal-navbar {
+	align-items: center;
+}
+
+.dinext-goal-navbar-value {
+	display: flex;
+	align-items: baseline;
+	gap: 3px;
+	white-space: nowrap;
+	font-weight: 600;
+	color: var(--dinext-goal-rag, var(--dinext-goal-none));
+}
+
+.dinext-goal-navbar-value:hover {
+	opacity: 0.85;
+}
+
+.dinext-goal-navbar-unit {
+	font-size: var(--text-xs, 11px);
+}

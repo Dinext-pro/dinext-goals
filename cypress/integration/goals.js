@@ -582,4 +582,21 @@ context("goal analytics", () => {
 			});
 		});
 	});
+
+	it("Top goal in the navbar", () => {
+		signIn(OWNER);
+		cy.get(".navbar .dinext-goal-navbar-value")
+			.should("have.attr", "data-goal", seed().middle)
+			.and("have.attr", "class")
+			.and("match", /dinext-goal-rag-(green|yellow|red)/);
+		cy.get(".navbar .navbar-nav > li").first().should("have.class", "dinext-goal-navbar");
+		cy.get(".navbar .dinext-goal-navbar").next().should("have.class", "dropdown-notifications");
+		cy.get(".navbar .dinext-goal-navbar-unit").should("have.text", "%");
+		cy.get(".navbar .dinext-goal-navbar-value").click();
+		cy.location("pathname").should("eq", "/app/goal-map");
+		cy.window().should((win) => {
+			expect(goalMap(win).filters.root.get_value()).to.eq(seed().middle);
+			expect(mapItems(win, "goal").map((item) => item.goal)).to.include.members([seed().middle, seed().history]);
+		});
+	});
 });

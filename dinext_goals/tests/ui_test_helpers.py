@@ -16,13 +16,15 @@ from frappe.tests.ui_test_helpers import whitelist_for_tests
 from frappe.utils import add_days, nowdate
 from frappe.utils.password import update_password
 
-from dinext_goals.constants import GOAL, GOAL_CAMPAIGN, GOAL_LOG, GOAL_TEMPLATE
+from dinext_goals.constants import GOAL, GOAL_CAMPAIGN, GOAL_LOG, GOAL_TEMPLATE, SETTINGS
 from dinext_goals.goals import hierarchy
 from dinext_goals.progress import engine
 
 PASSWORD_ENV = "DINEXT_GOALS_CYPRESS_PASSWORD"
 PREFIX = "CY Goals"
 TEMPLATE = f"{PREFIX} Template"
+# Seeding turns the navbar goal on; cleanup restores the site value kept under this cache key.
+NAVBAR_CACHE_KEY = "dinext_goals_cypress_navbar_setting"
 MANAGER = "goals.cy.manager@example.com"
 OWNER = "goals.cy.owner@example.com"
 USERS = {
@@ -135,6 +137,10 @@ def seed_goals_cypress() -> dict:
 	frappe.set_user("Administrator")
 	try:
 		_cleanup()
+		frappe.cache.set_value(
+			NAVBAR_CACHE_KEY, frappe.db.get_single_value(SETTINGS, "show_top_goal_in_navbar") or 0
+		)
+		frappe.db.set_single_value(SETTINGS, "show_top_goal_in_navbar", 1)
 		project = _project_with_tasks()
 		cost_center = frappe.get_all(
 			"Cost Center", filters={"is_group": 0}, pluck="name", order_by="name", limit=1
@@ -251,5 +257,9 @@ def cleanup_goals_cypress() -> None:
 	frappe.set_user("Administrator")
 	try:
 		_cleanup()
+		previous = frappe.cache.get_value(NAVBAR_CACHE_KEY)
+		if previous is not None:
+			frappe.db.set_single_value(SETTINGS, "show_top_goal_in_navbar", previous)
+			frappe.cache.delete_value(NAVBAR_CACHE_KEY)
 	finally:
 		frappe.set_user(user)
