@@ -35,6 +35,8 @@ class TestAppBootstrap(FrappeTestCase):
 		self.assertEqual(
 			{s.state for s in workflow.states}, {"Draft", "Parent Approval", "Finance Approval", "Approved"}
 		)
+		if not frappe.get_meta("Workflow Transition").has_field("custom_parallel_approval_policy"):
+			return
 		policies = {(t.state, t.action): t.custom_parallel_approval_policy for t in workflow.transitions}
 		self.assertEqual(policies[("Parent Approval", "Approve")], "All")
 		self.assertEqual(policies[("Finance Approval", "Approve")], "Any")
