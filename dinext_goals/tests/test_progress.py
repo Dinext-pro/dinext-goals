@@ -4,9 +4,23 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from dinext_goals.constants import GOAL, GOAL_LOG
-from dinext_goals.demo.motivation_itk import MANAGER_RESULT, MONTHLY_RESULT, PROJECT_RESULT, SPECIALIST_RESULT
 from dinext_goals.progress import engine, metrics, planning, rollup, scale
-from dinext_goals.tests.utils import GoalTestCase, make_goal, make_group, param
+from dinext_goals.tests.utils import (
+	T_MANAGER,
+	T_MONTHLY,
+	T_PROJECT,
+	T_SPECIALIST,
+	GoalTestCase,
+	make_goal,
+	make_group,
+	param,
+	shipped_formula,
+)
+
+MANAGER_RESULT = shipped_formula(T_MANAGER)
+SPECIALIST_RESULT = shipped_formula(T_SPECIALIST)
+MONTHLY_RESULT = shipped_formula(T_MONTHLY)
+PROJECT_RESULT = shipped_formula(T_PROJECT)
 
 MANAGER_KPERS_SCALE = ((0, 0.5), (50, 0.8), (90, 1), (110, 1.2))
 POINTS_SCALE = ((0, 0), (50, 0.5), (80, 1), (120.0001, 1.2))

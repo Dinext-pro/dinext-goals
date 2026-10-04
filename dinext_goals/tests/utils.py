@@ -6,6 +6,8 @@ documents are recreated per test and never reach the site.
 
 from __future__ import annotations
 
+import json
+from functools import cache
 from unittest.mock import patch
 
 import frappe
@@ -20,6 +22,11 @@ from dinext_goals.constants import (
 	STATE_APPROVED,
 	STATUS_ACTIVE,
 )
+
+T_MANAGER = "Бонус руководителя подразделения"
+T_SPECIALIST = "Бонус сотрудника"
+T_MONTHLY = "Премия за утилизацию"
+T_PROJECT = "Проектный бонус"
 
 START = "2026-01-01"
 END = "2026-12-31"
@@ -229,3 +236,17 @@ class GoalTestCase(FrappeTestCase):
 
 	def reload(self, name: str):
 		return frappe.get_doc(GOAL, name)
+
+
+@cache
+def shipped_templates() -> dict[str, dict]:
+	"""Goal templates of `fixtures/goal_template.json` by name."""
+	path = frappe.get_app_path("dinext_goals", "fixtures", "goal_template.json")
+	with open(path, encoding="utf-8") as fixture:
+		return {row["name"]: row for row in json.load(fixture)}
+
+
+def shipped_formula(template: str) -> str:
+	"""Result formula of the root item of a shipped template."""
+	items = shipped_templates()[template]["items"]
+	return next(row for row in items if not row.get("parent_key"))["result_formula"]

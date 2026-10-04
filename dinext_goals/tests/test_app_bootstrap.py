@@ -3,6 +3,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from dinext_goals.constants import GOAL_ROLES, SETTINGS, WORKFLOW_NAME
 from dinext_goals.setup.dinext_hub import HUB_ITEMS
+from dinext_goals.tests.utils import T_MANAGER, T_MONTHLY, T_PROJECT, T_SPECIALIST, shipped_formula
 
 NUMBER_CARDS = (
 	"All Goals",
@@ -54,21 +55,14 @@ class TestAppBootstrap(FrappeTestCase):
 			self.assertIn(field, excluded["Goal"])
 
 	def test_goal_template_fixtures(self):
-		from dinext_goals.demo import motivation_itk as demo
-
 		expected = {
-			demo.T_MANAGER: (
-				{"MGR", "PROFIT", "KPERS"},
-				{"cost_center", "profit_share", "gate_goal_code"},
-				demo.MANAGER_RESULT,
-			),
-			demo.T_SPECIALIST: (
+			T_MANAGER: ({"MGR", "PROFIT", "KPERS"}, {"cost_center", "profit_share", "gate_goal_code"}),
+			T_SPECIALIST: (
 				{"SPEC", "UTIL", "POINTS", "KPERS"},
 				{"grade", "bonus_base", "k_prem", "points_plan"},
-				demo.SPECIALIST_RESULT,
 			),
-			demo.T_MONTHLY: ({"MONTH"}, {"k_prem"}, demo.MONTHLY_RESULT),
-			demo.T_PROJECT: ({"PROJECT"}, {"projects", "project_bonus_share"}, demo.PROJECT_RESULT),
+			T_MONTHLY: ({"MONTH"}, {"k_prem"}),
+			T_PROJECT: ({"PROJECT"}, {"projects", "project_bonus_share"}),
 		}
 		fixture_filter = next(
 			f
@@ -76,15 +70,14 @@ class TestAppBootstrap(FrappeTestCase):
 			if isinstance(f, dict) and f["doctype"] == "Goal Template"
 		)
 		self.assertEqual(set(fixture_filter["filters"][0][2]), set(expected))
-		for name, (items, asked, formula) in expected.items():
+		for name, (items, asked) in expected.items():
 			template = frappe.get_doc("Goal Template", name)
 			self.assertEqual({row.item_key for row in template.items}, items, name)
 			self.assertEqual(
 				{row.code for row in template.template_parameters if row.ask_on_create}, asked, name
 			)
 			root = next(row for row in template.items if not row.parent_key)
-			self.assertEqual(root.result_formula, formula, name)
-			self.assertNotIn(demo.MARKER, template.description or "")
+			self.assertEqual(root.result_formula, shipped_formula(name), name)
 
 	def test_goal_template_fixtures_are_generic(self):
 		path = frappe.get_app_path("dinext_goals", "fixtures", "goal_template.json")

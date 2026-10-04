@@ -8,7 +8,8 @@
   "red_threshold",
   "column_break_main",
   "enable_daily_recalculation",
-  "show_linked_documents_on_map"
+  "show_linked_documents_on_map",
+  "show_top_goal_in_navbar"
  ],
  "fields": [
   {
@@ -40,11 +41,18 @@
    "fieldname": "show_linked_documents_on_map",
    "fieldtype": "Check",
    "label": "Show Linked Documents on Goal Map by Default"
+  },
+  {
+   "default": "0",
+   "description": "Each user sees the actual value of their top-level goal active today in the Desk toolbar.",
+   "fieldname": "show_top_goal_in_navbar",
+   "fieldtype": "Check",
+   "label": "Show Top Goal in Navbar"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-02 03:17:02.340743",
+ "modified": "2026-10-03 14:30:00.000000",
  "modified_by": "Administrator",
  "module": "Dinext Goals",
  "name": "Goals Settings",

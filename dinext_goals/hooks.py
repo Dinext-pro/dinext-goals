@@ -63,6 +63,9 @@ has_permission = {
 	"Goal Log": "dinext_goals.goals.permissions.goal_log_has_permission",
 }
 
+app_include_js = ["/assets/dinext_goals/js/goal_navbar.js"]
+app_include_css = ["/assets/dinext_goals/css/goals.css"]
+
 doctype_js = {
 	"Project": "public/js/project_goals.js",
 	"Goal": "public/js/goals_common.js",
