@@ -222,13 +222,14 @@
 		return { text: format_number(v, null, Number.isInteger(v) ? 0 : 2), suffix: "" };
 	}
 
-	function kpi_tile(key, label, value, { unit = "", rag = "", hint = "", percent = false, signed = false } = {}) {
+	function kpi_tile(key, label, value, { unit = "", rag = "", hint = "", percent = false, signed = false, drill = false } = {}) {
 		const compact = percent ? { text: format_number(value || 0, null, 1), suffix: "" } : fmt_compact(value);
 		if (signed && Number(value) > 0) compact.text = `+${compact.text}`;
 		const exact = percent ? `${format_number(value || 0, null, 2)}%` : format_number(value || 0, null, 2);
 		const tail = [compact.suffix, percent ? "%" : unit].filter(Boolean).join(" ");
+		const drill_title = drill ? `\n${__("Double-click to open the source documents")}` : "";
 		return `
-			<div class="dinext-goal-kpi-card ${rag ? rag_class(rag) + " is-rag" : ""}" data-kpi="${key}" title="${esc(exact + (unit ? " " + unit : ""))}">
+			<div class="dinext-goal-kpi-card ${rag ? rag_class(rag) + " is-rag" : ""}" data-kpi="${key}"${drill ? ' data-drill="1"' : ""} title="${esc(exact + (unit ? " " + unit : "") + drill_title)}">
 				<div class="dinext-goal-kpi-label">${esc(label)}</div>
 				<div class="dinext-goal-kpi-value">${esc(compact.text)}${tail ? `<span class="dinext-goal-kpi-unit">${esc(tail)}</span>` : ""}</div>
 				${hint ? `<div class="dinext-goal-kpi-hint">${hint}</div>` : ""}
@@ -242,13 +243,14 @@
 		const has_metric = !d.is_group && d.metric_type && d.metric_type !== "Boolean";
 		if (has_metric) {
 			const unit = d.unit || (d.metric_type === "Currency" ? d.currency || "" : "");
-			tiles.push(kpi_tile("actual", __("Actual"), d.current_value, { unit, rag: d.rag_status }));
-			tiles.push(kpi_tile("target", __("Target"), d.target, { unit }));
+			tiles.push(kpi_tile("actual", __("Actual"), d.current_value, { unit, rag: d.rag_status, drill: true }));
+			tiles.push(kpi_tile("target", __("Target"), d.target, { unit, drill: true }));
 			tiles.push(kpi_tile("achievement", __("Achievement"), d.achievement_percent, { percent: true }));
 			tiles.push(kpi_tile("progress", __("Progress"), d.progress, { percent: true, hint: esc(progress_hint) }));
 		} else {
-			tiles.push(kpi_tile("progress", __("Progress"), d.progress, { percent: true, rag: d.rag_status }));
-			tiles.push(kpi_tile("planned", __("Planned Progress"), d.planned_progress, { percent: true }));
+			const source_tile = !!(d.is_group || d.metric_type === "Boolean");
+			tiles.push(kpi_tile("progress", __("Progress"), d.progress, { percent: true, rag: d.rag_status, drill: source_tile }));
+			tiles.push(kpi_tile("planned", __("Planned Progress"), d.planned_progress, { percent: true, drill: source_tile }));
 			tiles.push(kpi_tile("deviation", __("Deviation"), d.deviation, { percent: true, signed: true }));
 			if (d.is_group) {
 				tiles.push(kpi_tile("achievement", __("Achievement"), d.achievement_percent, { percent: true }));
@@ -263,9 +265,65 @@
 		return `<div class="dinext-goal-kpi-grid" data-testid="goal-kpis">${tiles.join("")}</div>`;
 	}
 
+	function show_drilldown(result) {
+		if (!result) {
+			return;
+		}
+		if (result.kind === "list") {
+			const open = () => {
+				frappe.route_options = result.filters || {};
+				frappe.set_route("List", result.doctype);
+			};
+			if (result.note) {
+				frappe.msgprint({
+					title: __("Source documents"),
+					message: frappe.utils.escape_html(result.note),
+					primary_action: {
+						label: __("Open"),
+						action() {
+							frappe.msg_dialog.hide();
+							open();
+						},
+					},
+				});
+				return;
+			}
+			open();
+			return;
+		}
+		if (result.kind === "dialog") {
+			const links = (result.links || [])
+				.map((link) => {
+					if (link.error) {
+						return `<div>${esc(link.code)}: ${esc(link.error)}</div>`;
+					}
+					const href = frappe.utils.get_form_link(link.doctype || "Goal", link.name);
+					return `<div><a href="${href}">${esc(link.label || link.name)}</a></div>`;
+				})
+				.join("");
+			frappe.msgprint({
+				title: result.title,
+				message: `<pre class="dinext-goal-drilldown-expression">${esc(result.expression || "")}</pre>${links}`,
+				wide: true,
+			});
+			return;
+		}
+		frappe.msgprint({
+			title: __("Source documents"),
+			message: frappe.utils.escape_html(result.text || ""),
+			indicator: "blue",
+		});
+	}
+
 	function render_kpis(frm, wrapper) {
 		wrapper.find(".dinext-goal-kpi-grid").remove();
 		wrapper.prepend(kpi_html(frm));
+		wrapper.find("[data-drill='1']").on("dblclick", function () {
+			frappe.xcall("dinext_goals.api.get_metric_drilldown", {
+				goal: frm.doc.name,
+				tile: $(this).attr("data-kpi"),
+			}).then(show_drilldown);
+		});
 	}
 
 	function render_children(frm) {

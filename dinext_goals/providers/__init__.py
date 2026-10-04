@@ -34,6 +34,14 @@ class MetricProvider:
 	def get_target(self, goal, params) -> float:
 		raise NotImplementedError
 
+	def source_documents(self, goal, params, date_from, date_to, *, side: str = "value") -> dict:
+		"""Documents behind ``get_value`` (``side="value"``) or ``get_target`` (``side="target"``).
+
+		Returns ``doctype``, Desk ``filters`` and an optional ``note``. ``empty`` means there is
+		nothing to list.
+		"""
+		raise NotImplementedError
+
 	def describe(self) -> dict:
 		return {
 			"key": self.key,

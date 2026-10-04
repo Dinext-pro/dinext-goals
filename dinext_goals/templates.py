@@ -29,6 +29,7 @@ COPIED_FIELDS = (
 	"target_source",
 	"target_provider",
 	"target_formula",
+	"target_drilldown_formula",
 	"metric_source",
 	"metric_provider",
 	"linked_document_type",
@@ -36,6 +37,7 @@ COPIED_FIELDS = (
 	"linked_document_field",
 	"aggregation",
 	"calculation_rule",
+	"calculation_drilldown_rule",
 	"result_label",
 	"result_formula",
 	"description",
@@ -94,7 +96,9 @@ def validate_template(doc) -> None:
 			get_provider(item.target_provider, check_available=False)
 		for fieldname, label in (
 			("target_formula", "Target Formula"),
+			("target_drilldown_formula", "Target Drill-down Formula"),
 			("calculation_rule", "Calculation Rule"),
+			("calculation_drilldown_rule", "Calculation Drill-down Rule"),
 			("result_formula", "Result Formula"),
 		):
 			formulas.check_syntax(item.get(fieldname), label)

@@ -166,6 +166,41 @@ class Calculator:
 			raise formulas.GoalFormulaError(_("tree_goal(): a goal cannot reference itself"))
 		return self.view(row.name)
 
+	def stored_context(self, doc) -> dict:
+		"""Formula context that reads stored values and does not recalculate."""
+		key = doc.name
+		date_from, date_to = planning.calculation_period(doc.exp_start_date, doc.exp_end_date, self.on_date)
+		return {
+			"params": self.params_of(key, doc),
+			"child": lambda code: self._stored_match(doc, code, tree=False),
+			"tree_goal": lambda code: self._stored_match(doc, code, tree=True),
+			"date_from": date_from,
+			"date_to": date_to,
+			"today": self.on_date,
+			"goal": self._make_view(key, doc, stored_values(doc)),
+		}
+
+	def _stored_match(self, doc, code: str, *, tree: bool) -> frappe._dict:
+		if tree:
+			parents = tuple(hierarchy.doc_parent_names(doc))
+			members = hierarchy.get_tree_members(None if doc.is_new() else doc.name, parents)
+			scope = _("tree_goal()")
+		else:
+			members = [] if doc.is_new() else hierarchy.get_child_names(doc.name)
+			scope = _("child()")
+		rows = (
+			frappe.get_list(
+				GOAL, filters={"name": ["in", members]}, fields=["name", "goal_code"], limit_page_length=0
+			)
+			if members
+			else []
+		)
+		row = _pick_by_code(rows, code, scope)
+		if tree and row.name == doc.name:
+			raise formulas.GoalFormulaError(_("tree_goal(): a goal cannot reference itself"))
+		loaded = self.load(row.name)
+		return self._make_view(row.name, loaded, stored_values(loaded))
+
 	def _context(self, doc, key: str, params, date_from, date_to, values=None) -> dict:
 		context = {
 			"params": params,

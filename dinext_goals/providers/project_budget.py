@@ -23,6 +23,16 @@ def period_months(date_from, date_to) -> set[tuple[int, int]]:
 	return months
 
 
+def month_note(date_from, date_to) -> str:
+	if not date_from or not date_to:
+		return _("All budget months are included")
+	months = sorted(period_months(date_from, date_to))
+	if not months:
+		return _("No budget month overlaps the period")
+	text = ", ".join(f"{year}-{month:02d}" for year, month in months)
+	return _("Months included: {0}").format(text)
+
+
 def planned_project_profit(projects, date_from=None, date_to=None) -> float:
 	"""Income minus expense budget; without both dates every budget month counts."""
 	project_list = as_list(projects)
@@ -81,6 +91,18 @@ class ProjectBudgetProfitProvider(MetricProvider):
 		return planned_project_profit(
 			params.get("projects"), goal.get("exp_start_date"), goal.get("exp_end_date")
 		)
+
+	def source_documents(self, goal, params, date_from, date_to, *, side: str = "value") -> dict:
+		projects = as_list(params.get("projects"))
+		if not projects:
+			frappe.throw(_("Planned project profit needs the projects parameter"))
+		if side == "target":
+			date_from, date_to = goal.get("exp_start_date"), goal.get("exp_end_date")
+		return {
+			"doctype": "Project Budget",
+			"filters": {"pb_project": ["in", projects]},
+			"note": month_note(date_from, date_to),
+		}
 
 
 provider = ProjectBudgetProfitProvider()

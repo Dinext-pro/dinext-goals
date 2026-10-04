@@ -128,6 +128,7 @@ def validate_source_config(doc) -> None:
 				frappe.throw(_("Metric Provider is required for the Provider source"))
 		elif source == "Python Rule":
 			formulas.check_syntax(doc.calculation_rule, "Calculation Rule")
+			formulas.check_syntax(doc.get("calculation_drilldown_rule"), "Calculation Drill-down Rule")
 	if doc.target_source == "Provider":
 		key = target_provider_key(doc)
 		if not key:
@@ -137,3 +138,4 @@ def validate_source_config(doc) -> None:
 			frappe.throw(_("Metric provider {0} does not provide a target").format(_(provider.label)))
 	if doc.target_source == "Formula":
 		formulas.check_syntax(doc.target_formula, "Target Formula")
+		formulas.check_syntax(doc.get("target_drilldown_formula"), "Target Drill-down Formula")

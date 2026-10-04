@@ -1,9 +1,10 @@
 import frappe
 
+from dinext_goals import api
 from dinext_goals.providers import get_provider, get_registry, list_providers
 from dinext_goals.providers.energy_points import energy_points
-from dinext_goals.providers.gl_profit import gl_profit
-from dinext_goals.providers.project_budget import planned_project_profit
+from dinext_goals.providers.gl_profit import gl_entry_scope, gl_profit, income_expense_accounts
+from dinext_goals.providers.project_budget import month_note, period_months, planned_project_profit
 from dinext_goals.providers.timesheet_utilization import (
 	APPROVED_TIMESHEET_STATUS,
 	team_users,
@@ -142,6 +143,39 @@ class TestGLProfit(GoalTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			gl_profit(date_from="2026-03-01", date_to="2026-03-31")
 
+	def test_drilldown_names_match_entries_in_the_sum(self):
+		from unittest.mock import patch
+
+		goal = make_goal(
+			"Profit list",
+			params=[param("cost_center", "Link", self.group, link_doctype="Cost Center")],
+			progress_method="Auto",
+			metric_source="Provider",
+			metric_provider="gl_profit",
+			company=COMPANY,
+			exp_start_date="2026-03-01",
+			exp_end_date="2026-03-31",
+		)
+		result = api.get_metric_drilldown(goal.name, "actual")
+		filters, or_filters = gl_entry_scope(
+			date_from="2026-03-01", date_to="2026-03-31", cost_center=self.group, company=COMPANY
+		)
+		filters["account"] = ["in", income_expense_accounts(COMPANY)]
+		expected = frappe.get_all("GL Entry", filters=filters, or_filters=or_filters, pluck="name")
+		self.assertCountEqual(result["filters"]["name"][1], expected)
+		cash = frappe.get_all(
+			"GL Entry",
+			filters={"account": CASH, "cost_center": self.child, "is_cancelled": 0},
+			pluck="name",
+		)
+		self.assertTrue(cash)
+		self.assertFalse(set(cash) & set(expected))
+		with patch("dinext_goals.providers.gl_profit.NAME_LIMIT", 0):
+			wide = api.get_metric_drilldown(goal.name, "actual")
+		self.assertNotIn("name", wide["filters"])
+		self.assertIn("account", wide["filters"])
+		self.assertTrue(wide["note"])
+
 	def test_closing_opening_and_other_books_are_excluded(self):
 		gl(
 			INCOME,
@@ -273,6 +307,11 @@ class TestProjectBudget(GoalTestCase):
 			exp_end_date="2026-09-30",
 		)
 		self.assertEqual(goal.target, 450_000)
+		opened = api.get_metric_drilldown(goal.name, "target")
+		self.assertEqual(opened["doctype"], "Project Budget")
+		self.assertEqual(opened["filters"]["pb_project"], ["in", [PROJECT]])
+		self.assertEqual(opened["note"], month_note("2026-07-01", "2026-09-30"))
+		self.assertEqual(set(period_months("2026-07-01", "2026-09-30")), {(2026, 7), (2026, 8), (2026, 9)})
 
 
 class TestTimesheetUtilization(GoalTestCase):
@@ -349,6 +388,15 @@ class TestTimesheetUtilization(GoalTestCase):
 			exp_end_date="2026-03-31",
 		)
 		self.assertAlmostEqual(team.current_value, 40 / 60 * 100)
+		opened = api.get_metric_drilldown(goal.name, "actual")
+		names = frappe.get_all("User Timesheet", filters=opened["filters"], pluck="name")
+		self.assertCountEqual(
+			names,
+			[
+				f"_GT {OWNER} 2026-03-02 2026-03-08",
+				f"_GT {OWNER} 2026-03-30 2026-03-31",
+			],
+		)
 
 
 class TestEnergyPoints(GoalTestCase):
@@ -391,3 +439,11 @@ class TestEnergyPoints(GoalTestCase):
 		self.assertEqual(goal.target, 90)
 		self.assertEqual(goal.current_value, 45)
 		self.assertEqual(goal.achievement_percent, 50)
+		opened = api.get_metric_drilldown(goal.name, "actual")
+		names = frappe.get_all("Energy Point Log", filters=opened["filters"], pluck="name")
+		self.assertEqual(len(names), 1)
+		self.assertEqual(frappe.db.get_value("Energy Point Log", names[0], "points"), 45)
+		dialog = api.get_metric_drilldown(goal.name, "target")
+		self.assertEqual(dialog["kind"], "dialog")
+		self.assertEqual(dialog["expression"], "params.points_plan")
+		self.assertEqual(dialog["links"], [])
