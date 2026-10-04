@@ -69,7 +69,7 @@ permission_query_conditions = {
 }
 
 app_include_js = ["/assets/dinext_goals/js/goal_navbar.js"]
-app_include_css = ["/assets/dinext_goals/css/goals.css"]
+app_include_css = ["/assets/dinext_goals/css/goal_navbar.css"]
 
 doctype_js = {
 	"Project": "public/js/project_goals.js",

@@ -164,7 +164,18 @@ export class GoalMap {
 		this.make_filters();
 		this.make_body();
 		this.ready = new Promise((resolve) => frappe.require(ECHARTS_ASSETS, resolve)).then(() => this.make_chart());
+		this.watch_theme();
 		this.apply_route_options();
+	}
+
+	// Canvas colours are read from CSS variables at render time, so a theme switch redraws the chart in place.
+	watch_theme() {
+		const redraw = frappe.utils.debounce(() => this.render(), 150);
+		this.theme_observer = new MutationObserver(redraw);
+		this.theme_observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["data-theme", "data-theme-mode", "class"],
+		});
 	}
 
 	make_filters() {
