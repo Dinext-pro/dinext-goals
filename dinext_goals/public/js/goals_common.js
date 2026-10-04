@@ -32,10 +32,16 @@ dinext_goals.load_providers = function () {
 };
 
 dinext_goals.provider_options = function (providers, kind) {
-	const rows = kind === "target" ? providers.filter((p) => p.supports_target) : providers;
+	const rows = (kind === "target" ? providers.filter((p) => p.supports_target) : providers).filter(
+		(provider) => provider && typeof provider.key === "string" && typeof provider.label === "string"
+	);
+	// A blank object becomes the text "[object Object]" wherever an option is coerced to a string.
 	return [
-		{ value: "", label: "" },
-		...rows.map((p) => ({ value: p.key, label: p.available ? p.label : `${p.label} (${__("unavailable")})` })),
+		"",
+		...rows.map((provider) => ({
+			value: provider.key,
+			label: provider.available ? provider.label : `${provider.label} (${__("unavailable")})`,
+		})),
 	];
 };
 

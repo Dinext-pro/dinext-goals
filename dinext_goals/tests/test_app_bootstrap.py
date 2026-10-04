@@ -2,7 +2,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from dinext_goals.constants import GOAL_ROLES, SETTINGS, WORKFLOW_NAME
-from dinext_goals.setup.dinext_hub import HUB_ITEMS
+from dinext_goals.setup.dinext_hub import HUB_ITEMS, REMOVED_TARGETS, register_dinext_hub_items
 from dinext_goals.tests.utils import T_MANAGER, T_MONTHLY, T_PROJECT, T_SPECIALIST, shipped_formula
 
 NUMBER_CARDS = (
@@ -46,6 +46,14 @@ class TestAppBootstrap(FrappeTestCase):
 		self.assertIn("dinext_goals.tasks.daily", frappe.get_hooks("scheduler_events")["daily"])
 		self.assertIn(
 			"dinext_goals.goals.permissions.goal_has_permission", frappe.get_hooks("has_permission")["Goal"]
+		)
+		self.assertIn(
+			"dinext_goals.goals.permissions.goal_query_conditions",
+			frappe.get_hooks("permission_query_conditions")["Goal"],
+		)
+		self.assertIn(
+			"dinext_goals.goals.permissions.goal_log_query_conditions",
+			frappe.get_hooks("permission_query_conditions")["Goal Log"],
 		)
 		excluded = {}
 		for entry in frappe.get_hooks("workflow_approval_fingerprint_excluded_fields"):
@@ -105,6 +113,20 @@ class TestAppBootstrap(FrappeTestCase):
 	def test_hub_items(self):
 		if not frappe.db.exists("Dinext Workspace Settings", "Dinext"):
 			self.skipTest("dinext_common hub settings are not installed")
+		register_dinext_hub_items()
 		settings = frappe.get_doc("Dinext Workspace Settings", "Dinext")
-		registered = {(row.element_type, row.target) for row in settings.items}
-		self.assertTrue({(item["element_type"], item["target"]) for item in HUB_ITEMS} <= registered)
+		workspace = [
+			row for row in settings.items if row.element_type == "Workspace" and row.target == "Цели"
+		]
+		self.assertTrue(workspace)
+		self.assertTrue(all(row.section == "My Work" for row in workspace))
+		self.assertEqual(
+			{(item["element_type"], item["target"]) for item in HUB_ITEMS}, {("Workspace", "Цели")}
+		)
+		ours = {
+			(row.element_type, row.target)
+			for row in settings.items
+			if not row.source_app or row.source_app == "dinext_goals"
+		}
+		for key in REMOVED_TARGETS:
+			self.assertNotIn(key, ours)

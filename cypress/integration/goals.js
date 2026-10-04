@@ -130,6 +130,9 @@ const MAP_ACTIONS = {
 	myFitHeight: "Вписать по высоте",
 	myExpandAll: "Развернуть все",
 	myCollapseAll: "Свернуть все",
+	myShowLinked: "Показывать связанные документы",
+	myOrientTB: "Сверху вниз",
+	myOrientLR: "Слева направо",
 	saveAsImage: "Сохранить как изображение",
 };
 
@@ -171,6 +174,16 @@ context("goal analytics", () => {
 			.find(".number")
 			.should("have.text", String(seed().owner_goals));
 		cy.noPermissionDialog();
+	});
+
+	it("Goal owner cannot open a goal outside their tree", () => {
+		signIn(OWNER);
+		cy.visit(`/app/goal/${encodeURIComponent(seed().root)}`, { failOnStatusCode: false });
+		cy.get(".modal:visible").should(($modal) => {
+			const denied = /Нет разрешения|не имеет доступа|Not permitted|no permission/i.test($modal.text());
+			expect(denied, "permission error dialog").to.eq(true);
+		});
+		openForm("goal", seed().history);
 	});
 
 	it("Goal with history", () => {
@@ -279,14 +292,24 @@ context("goal analytics", () => {
 	it("Map layout and filters", () => {
 		signIn(MANAGER);
 		openMap(seed().root);
-		setMapFilter("orient", "LR");
+		cy.get("[data-page-route='goal-map'] .page-form.row > .col-md-2").should(($fields) => {
+			const tops = [...$fields].map((el) => el.getBoundingClientRect().top);
+			expect($fields, "map filters").to.have.length(8);
+			expect(Math.max(...tops) - Math.min(...tops), "filters on one row").to.be.lessThan(2);
+		});
+		mapAction("myOrientLR");
 		cy.window().should((win) => {
 			const x = (name) => mapItem(win, "goal", (card) => card.goal === name).x;
 			expect(x(seed().root), "left to right").to.be.lessThan(x(seed().middle));
 			expect(win.localStorage.getItem("dinext_goal_map_orient")).to.eq("LR");
 		});
-		setMapFilter("orient", "TB");
-		cy.window().should((win) => expect(goalMap(win).get_filters().status).to.deep.eq(["Active"]));
+		mapAction("myOrientLR");
+		cy.window().should((win) => expect(goalMap(win).orient).to.eq("LR"));
+		mapAction("myOrientTB");
+		cy.window().should((win) => {
+			expect(goalMap(win).orient).to.eq("TB");
+			expect(goalMap(win).get_filters().status).to.deep.eq(["Active"]);
+		});
 		setMapFilter("status", ["Draft"]);
 		cy.get(".dinext-goal-map-empty").should("be.visible");
 		setMapFilter("status", ["Draft", "Active"]);
@@ -451,7 +474,7 @@ context("goal analytics", () => {
 	it("Linked documents card", () => {
 		signIn(MANAGER);
 		openMap(seed().root);
-		cy.get(".page-form [data-fieldname='show_linked'] input[type='checkbox']").check({ force: true });
+		mapAction("myShowLinked");
 		cy.window().should((win) => {
 			const linked = mapItems(win, "linked");
 			expect(linked).to.have.length(1);
@@ -476,12 +499,22 @@ context("goal analytics", () => {
 		cy.window().its("cur_frm.doc.__islocal").should("eq", 1);
 		cy.window().then((win) => win.cur_frm.set_value({ progress_method: "Auto", metric_source: "Provider" }));
 		cy.window().should((win) => {
+			const textOf = (option) =>
+				option && typeof option === "object" ? String(option.label ?? "") : String(option ?? "");
+			const metric = win.cur_frm.get_field("metric_provider").df.options || [];
+			const target = win.cur_frm.get_field("target_provider").df.options || [];
+			expect(metric.map(textOf).concat(target.map(textOf)).join("\n"), "option text").not.to.include(
+				"[object Object]"
+			);
 			expect(providerOptions(win, "metric_provider")).to.include.members(["gl_profit", "timesheet_utilization"]);
 			expect(providerOptions(win, "target_provider")).to.include("project_budget_profit").and.not.include("gl_profit");
 		});
 		cy.window().then((win) => win.cur_frm.set_value("metric_provider", "gl_profit"));
 		cy.get("#goal-metric_tab-tab").click();
 		cy.get("select[data-fieldname='metric_provider']").should("have.value", "gl_profit");
+		cy.get("select[data-fieldname='metric_provider'] option").each(($option) => {
+			expect($option.text(), "metric provider option").not.to.include("[object Object]");
+		});
 		cy.get("[data-testid='metric-provider-info'][data-provider='gl_profit']")
 			.should("be.visible")
 			.find(".dinext-goal-provider-details li")
