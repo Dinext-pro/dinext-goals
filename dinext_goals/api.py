@@ -20,7 +20,7 @@ from dinext_goals.constants import (
 	STATUS_CANCELLED,
 )
 from dinext_goals.goals import hierarchy, lifecycle
-from dinext_goals.progress import engine, planning, sources
+from dinext_goals.progress import drilldown, engine, planning, sources
 from dinext_goals.providers import list_providers
 
 MAP_NODE_LIMIT = 600
@@ -86,6 +86,11 @@ def set_lifecycle_status(goal: str, action: str) -> dict:
 def get_effective_parameters(goal: str) -> list[dict]:
 	_goal_for(goal)
 	return parameters.describe(parameters.resolve_for_name(goal))
+
+
+@frappe.whitelist()
+def get_metric_drilldown(goal: str, tile: str) -> dict:
+	return drilldown.get_metric_drilldown(_goal_for(goal), tile)
 
 
 @frappe.whitelist()
@@ -207,14 +212,7 @@ def save_as_template(goal: str, template_name: str) -> str:
 
 
 def _route_options(filters: dict | list) -> dict:
-	if isinstance(filters, dict):
-		return filters
-	options = {}
-	for item in filters or []:
-		if isinstance(item, list | tuple) and len(item) >= 3:
-			field, op, value = item[-3], item[-2], item[-1]
-			options[field] = value if op == "=" else [op, value]
-	return options
+	return drilldown.as_route_options(filters)
 
 
 def _linked_card(row) -> dict | None:

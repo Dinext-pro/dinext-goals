@@ -15,6 +15,7 @@ from frappe.utils import flt
 from dinext_goals.providers import MetricProvider, as_list, cost_center_with_descendants
 
 PERIOD_CLOSING_VOUCHER = "Period Closing Voucher"
+NAME_LIMIT = 2000
 
 
 def account_root_types(accounts: list[str]) -> dict[str, str]:
@@ -36,9 +37,10 @@ def _ensure_one_currency(companies: set[str]) -> None:
 		)
 
 
-def gl_profit(
+def gl_entry_scope(
 	*, date_from, date_to, cost_center: str | None = None, projects=None, company: str | None = None
-) -> float:
+) -> tuple[dict, list]:
+	"""Filters shared by the profit sum and its drill-down list."""
 	filters: dict = {
 		"is_cancelled": 0,
 		"is_opening": ["!=", "Yes"],
@@ -60,7 +62,22 @@ def gl_profit(
 		filters["cost_center"] = ["in", cost_center_with_descendants(cost_center)]
 	else:
 		frappe.throw(_("Gross profit needs the cost_center or projects parameter"))
+	return filters, or_filters
 
+
+def income_expense_accounts(company: str | None = None) -> list[str]:
+	filters: dict = {"root_type": ["in", ["Income", "Expense"]]}
+	if company:
+		filters["company"] = company
+	return frappe.get_all("Account", filters=filters, pluck="name")
+
+
+def gl_profit(
+	*, date_from, date_to, cost_center: str | None = None, projects=None, company: str | None = None
+) -> float:
+	filters, or_filters = gl_entry_scope(
+		date_from=date_from, date_to=date_to, cost_center=cost_center, projects=projects, company=company
+	)
 	rows = frappe.get_all(
 		"GL Entry",
 		filters=filters,
@@ -105,6 +122,34 @@ class GLProfitProvider(MetricProvider):
 			projects=params.get("projects"),
 			company=goal.get("company"),
 		)
+
+	def source_documents(self, goal, params, date_from, date_to, *, side: str = "value") -> dict:
+		if side != "value":
+			frappe.throw(_("Metric provider {0} does not provide a target").format(_(self.label)))
+		company = goal.get("company")
+		filters, or_filters = gl_entry_scope(
+			date_from=date_from,
+			date_to=date_to,
+			cost_center=params.get("cost_center"),
+			projects=params.get("projects"),
+			company=company,
+		)
+		accounts = income_expense_accounts(company)
+		if not accounts:
+			return {"doctype": "GL Entry", "empty": 1}
+		filters["account"] = ["in", accounts]
+		names = frappe.get_all(
+			"GL Entry", filters=filters, or_filters=or_filters, pluck="name", limit=NAME_LIMIT + 1
+		)
+		if len(names) > NAME_LIMIT:
+			return {
+				"doctype": "GL Entry",
+				"filters": filters,
+				"note": _("The list may include entries of other finance books."),
+			}
+		if not names:
+			return {"doctype": "GL Entry", "empty": 1}
+		return {"doctype": "GL Entry", "filters": {"name": ["in", names]}}
 
 
 provider = GLProfitProvider()

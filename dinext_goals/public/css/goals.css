@@ -46,6 +46,14 @@
 	margin-bottom: 16px;
 }
 
+.dinext-goal-kpi-card[data-drill="1"] {
+	cursor: pointer;
+}
+
+.dinext-goal-drilldown-expression {
+	white-space: pre-wrap;
+}
+
 .dinext-goal-kpi-card {
 	display: flex;
 	flex-direction: column;

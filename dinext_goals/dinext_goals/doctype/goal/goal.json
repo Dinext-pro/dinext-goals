@@ -54,6 +54,7 @@
   "target_provider",
   "target_provider_info",
   "target_formula",
+  "target_drilldown_formula",
   "source_section",
   "metric_source",
   "metric_provider",
@@ -64,6 +65,7 @@
   "column_break_source",
   "linked_document_filter",
   "calculation_rule",
+  "calculation_drilldown_rule",
   "result_tab",
   "scale",
   "column_break_result",
@@ -419,6 +421,15 @@
    "permlevel": 1
   },
   {
+   "depends_on": "eval:doc.target_source == 'Formula'",
+   "description": "Optional Python expression returning the source documents of the target. Call documents(doctype, filters) or documents(doctype, names=[...]). Available: params, goal, child(code), tree_goal(code), date_from, date_to.",
+   "fieldname": "target_drilldown_formula",
+   "fieldtype": "Code",
+   "label": "Target Drill-down Formula",
+   "options": "Python",
+   "permlevel": 1
+  },
+  {
    "depends_on": "eval:doc.progress_method == 'Auto' || doc.target_source == 'Provider'",
    "fieldname": "source_section",
    "fieldtype": "Section Break",
@@ -483,6 +494,15 @@
    "fieldname": "calculation_rule",
    "fieldtype": "Code",
    "label": "Calculation Rule",
+   "options": "Python",
+   "permlevel": 1
+  },
+  {
+   "depends_on": "eval:doc.progress_method == 'Auto' && doc.metric_source == 'Python Rule'",
+   "description": "Optional Python expression returning the source documents of the actual value. Call documents(doctype, filters) or documents(doctype, names=[...]). Available: params, goal, child(code), tree_goal(code), date_from, date_to.",
+   "fieldname": "calculation_drilldown_rule",
+   "fieldtype": "Code",
+   "label": "Calculation Drill-down Rule",
    "options": "Python",
    "permlevel": 1
   },

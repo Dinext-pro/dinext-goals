@@ -16,17 +16,21 @@ from dinext_goals.providers import MetricProvider, cost_center_with_descendants
 APPROVED_TIMESHEET_STATUS = "Согласован"
 
 
+def timesheet_filters(users: list[str], date_from, date_to) -> dict:
+	return {
+		"timesheet_from": ["in", users],
+		"ut_status": APPROVED_TIMESHEET_STATUS,
+		"ts_valid_from": ["between", [getdate(date_from), getdate(date_to)]],
+	}
+
+
 def timesheet_totals(users: list[str], date_from, date_to) -> tuple[float, float]:
 	"""Utilized hours and utilization plan hours of the approved timesheets starting in the period."""
 	if not users:
 		return 0.0, 0.0
 	rows = frappe.get_all(
 		"User Timesheet",
-		filters={
-			"timesheet_from": ["in", users],
-			"ut_status": APPROVED_TIMESHEET_STATUS,
-			"ts_valid_from": ["between", [getdate(date_from), getdate(date_to)]],
-		},
+		filters=timesheet_filters(users, date_from, date_to),
 		fields=["sum(total_hours_utilized) as utilized", "sum(utilization_hours_plan) as plan"],
 	)
 	if not rows:
@@ -86,6 +90,17 @@ class TimesheetUtilizationProvider(MetricProvider):
 
 	def get_value(self, goal, params, date_from, date_to) -> float:
 		return timesheet_utilization(scope_users(goal, params, date_to), date_from, date_to)
+
+	def source_documents(self, goal, params, date_from, date_to, *, side: str = "value") -> dict:
+		if side != "value":
+			frappe.throw(_("Metric provider {0} does not provide a target").format(_(self.label)))
+		users = scope_users(goal, params, date_to)
+		if not users:
+			return {"doctype": "User Timesheet", "empty": 1}
+		return {
+			"doctype": "User Timesheet",
+			"filters": timesheet_filters(users, date_from, date_to),
+		}
 
 
 provider = TimesheetUtilizationProvider()

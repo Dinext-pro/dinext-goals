@@ -471,6 +471,29 @@ context("goal analytics", () => {
 		cy.window().its("cur_frm.doc.name").should("eq", seed().middle);
 	});
 
+	it("Drill down from the actual tile", () => {
+		signIn(MANAGER);
+		openForm("goal", seed().tasks);
+		cy.get("[data-kpi='actual']").should("have.attr", "data-drill", "1");
+		cy.get("[data-kpi='achievement']").should("not.have.attr", "data-drill");
+		cy.get("[data-kpi='achievement']").dblclick();
+		cy.location("pathname").should("include", "/app/goal/");
+		cy.get("[data-kpi='target']").dblclick();
+		cy.get(".modal:visible").should("contain", "План введен на карточке цели");
+		cy.window().then((win) => {
+			win.$(".modal-backdrop").remove();
+			win.$("body").removeClass("modal-open");
+			win.$(".modal").remove();
+		});
+		cy.get(".modal").should("not.exist");
+		cy.get("[data-kpi='actual']").dblclick();
+		cy.window().its("cur_list.doctype").should("eq", "Task");
+		cy.window().should((win) => {
+			const filters = win.cur_list.filter_area.get().map((filter) => [filter[1], filter[3]]);
+			expect(filters).to.deep.include(["project", seed().project]);
+		});
+	});
+
 	it("Linked documents card", () => {
 		signIn(MANAGER);
 		openMap(seed().root);
