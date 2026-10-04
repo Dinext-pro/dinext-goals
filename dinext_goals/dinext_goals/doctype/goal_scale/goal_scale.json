@@ -1,0 +1,41 @@
+{
+ "actions": [],
+ "creation": "2026-10-02 03:00:00",
+ "description": "Stepped scale: achievement threshold (%) to coefficient.",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "threshold_percent",
+  "coefficient"
+ ],
+ "fields": [
+  {
+   "fieldname": "threshold_percent",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Achievement From, %",
+   "reqd": 1
+  },
+  {
+   "fieldname": "coefficient",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Coefficient",
+   "precision": "4",
+   "reqd": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-02 03:17:01.117679",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goal Scale",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

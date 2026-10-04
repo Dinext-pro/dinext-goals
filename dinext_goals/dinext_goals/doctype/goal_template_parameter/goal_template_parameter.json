@@ -1,0 +1,171 @@
+{
+ "actions": [],
+ "creation": "2026-10-02 03:00:00",
+ "description": "Parameter of a template goal; empty item key means the root goal.",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_key",
+  "code",
+  "label",
+  "param_type",
+  "link_doctype",
+  "select_options",
+  "values_column",
+  "value_number",
+  "value_data",
+  "value_date",
+  "value_check",
+  "value_link",
+  "value_list",
+  "value_display",
+  "flags_column",
+  "inherit",
+  "editable_when_active",
+  "ask_on_create",
+  "description"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "fieldname": "item_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Key"
+  },
+  {
+   "columns": 2,
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Code",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Label"
+  },
+  {
+   "columns": 1,
+   "default": "Float",
+   "fieldname": "param_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "Int\nFloat\nCurrency\nPercent\nData\nSelect\nDate\nCheck\nLink\nLink List",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:in_list(['Link', 'Link List'], doc.param_type)",
+   "fieldname": "link_doctype",
+   "fieldtype": "Link",
+   "label": "Link DocType",
+   "mandatory_depends_on": "eval:in_list(['Link', 'Link List'], doc.param_type)",
+   "options": "DocType"
+  },
+  {
+   "depends_on": "eval:doc.param_type=='Select'",
+   "description": "One option per line",
+   "fieldname": "select_options",
+   "fieldtype": "Small Text",
+   "label": "Select Options"
+  },
+  {
+   "fieldname": "values_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:in_list(['Int', 'Float', 'Currency', 'Percent'], doc.param_type)",
+   "fieldname": "value_number",
+   "fieldtype": "Float",
+   "label": "Number Value",
+   "precision": "6"
+  },
+  {
+   "depends_on": "eval:in_list(['Data', 'Select'], doc.param_type)",
+   "fieldname": "value_data",
+   "fieldtype": "Data",
+   "label": "Text Value"
+  },
+  {
+   "depends_on": "eval:doc.param_type=='Date'",
+   "fieldname": "value_date",
+   "fieldtype": "Date",
+   "label": "Date Value"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.param_type=='Check'",
+   "fieldname": "value_check",
+   "fieldtype": "Check",
+   "label": "Check Value"
+  },
+  {
+   "depends_on": "eval:doc.param_type=='Link'",
+   "fieldname": "value_link",
+   "fieldtype": "Dynamic Link",
+   "label": "Link Value",
+   "options": "link_doctype"
+  },
+  {
+   "depends_on": "eval:doc.param_type=='Link List'",
+   "description": "One document name per line",
+   "fieldname": "value_list",
+   "fieldtype": "Small Text",
+   "label": "Link List Value"
+  },
+  {
+   "columns": 2,
+   "fieldname": "value_display",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "flags_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "inherit",
+   "fieldtype": "Check",
+   "label": "Inherit"
+  },
+  {
+   "default": "0",
+   "fieldname": "editable_when_active",
+   "fieldtype": "Check",
+   "label": "Editable When Active"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "fieldname": "ask_on_create",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Ask on Create"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-02 03:17:01.843798",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goal Template Parameter",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

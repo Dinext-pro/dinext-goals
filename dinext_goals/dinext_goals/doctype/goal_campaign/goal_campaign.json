@@ -1,0 +1,198 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 14:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "status",
+  "company",
+  "column_break_main",
+  "period_type",
+  "period_start",
+  "period_end",
+  "period_label",
+  "defaults_section",
+  "default_template",
+  "default_parent_goal",
+  "column_break_defaults",
+  "code_prefix_pattern",
+  "subject_suffix_pattern",
+  "allow_duplicates",
+  "team_section",
+  "items",
+  "preview_section",
+  "preview_html"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "in_list_view": 1,
+   "description": "Empty: generated from the period label."
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPartially Created\nCreated",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "period_type",
+   "fieldtype": "Select",
+   "label": "Period Type",
+   "options": "Month\nQuarter\nHalf-Year\nYear\nCustom",
+   "default": "Quarter",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "period_start",
+   "fieldtype": "Date",
+   "label": "Period Start",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Defaults to the start of the next period; moved to the start of its period."
+  },
+  {
+   "fieldname": "period_end",
+   "fieldtype": "Date",
+   "label": "Period End",
+   "read_only_depends_on": "eval:doc.period_type != 'Custom'",
+   "mandatory_depends_on": "eval:doc.period_type == 'Custom'"
+  },
+  {
+   "fieldname": "period_label",
+   "fieldtype": "Data",
+   "label": "Period Label",
+   "read_only": 1
+  },
+  {
+   "fieldname": "defaults_section",
+   "fieldtype": "Section Break",
+   "label": "Row Defaults",
+   "collapsible": 0
+  },
+  {
+   "fieldname": "default_template",
+   "fieldtype": "Link",
+   "label": "Default Template",
+   "options": "Goal Template"
+  },
+  {
+   "fieldname": "default_parent_goal",
+   "fieldtype": "Link",
+   "label": "Default Parent Goal",
+   "options": "Goal",
+   "description": "Parent of the rows without their own parent goal or parent row."
+  },
+  {
+   "fieldname": "column_break_defaults",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "code_prefix_pattern",
+   "fieldtype": "Data",
+   "label": "Code Prefix Pattern",
+   "default": "{period}-{user}",
+   "description": "Goal code prefix of rows without their own: {period} — period code (2027Q1, 2027-01, 2027H1, 2027), {user} — login of the goal owner, {n} — row number."
+  },
+  {
+   "fieldname": "subject_suffix_pattern",
+   "fieldtype": "Data",
+   "label": "Subject Suffix Pattern",
+   "default": "— {full_name}, {period}",
+   "description": "Appended to the goal subjects of rows without their own: {period} — period label, {full_name} — goal owner name, {n} — row number."
+  },
+  {
+   "fieldname": "allow_duplicates",
+   "fieldtype": "Check",
+   "label": "Allow Duplicates",
+   "default": "0",
+   "description": "Create goals even if the owner already has goals of the template starting in the period."
+  },
+  {
+   "fieldname": "team_section",
+   "fieldtype": "Section Break",
+   "label": "Team"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Rows",
+   "options": "Goal Campaign Item"
+  },
+  {
+   "fieldname": "preview_section",
+   "fieldtype": "Section Break",
+   "label": "Preview"
+  },
+  {
+   "fieldname": "preview_html",
+   "fieldtype": "HTML",
+   "label": "Preview"
+  }
+ ],
+ "modified": "2026-10-03 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goal Campaign",
+ "owner": "Administrator",
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "GCMP-.YYYY.-.####",
+ "naming_rule": "Expression (old style)",
+ "title_field": "title",
+ "show_title_field_in_link": 1,
+ "description": "Bulk creation of goals from templates for a team and a period.",
+ "search_fields": "period_label,status",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Goal Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Goal Owner"
+  }
+ ]
+}

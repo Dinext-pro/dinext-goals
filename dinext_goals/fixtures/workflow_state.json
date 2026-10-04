@@ -1,0 +1,38 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "ok-sign",
+  "modified": "2023-02-21 18:24:43.333321",
+  "name": "Approved",
+  "style": "Success",
+  "workflow_state_name": "Approved"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-05-28 02:44:20.961763",
+  "name": "Draft",
+  "style": "Info",
+  "workflow_state_name": "Draft"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-10-02 03:17:35.893514",
+  "name": "Parent Approval",
+  "style": "Warning",
+  "workflow_state_name": "Parent Approval"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2026-10-02 03:17:35.907845",
+  "name": "Finance Approval",
+  "style": "Warning",
+  "workflow_state_name": "Finance Approval"
+ }
+]

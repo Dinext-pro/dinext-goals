@@ -1,0 +1,161 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 14:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "row_key",
+  "goal_owner",
+  "owner_name",
+  "template",
+  "parent_goal",
+  "parent_row",
+  "column_break_row",
+  "code_prefix",
+  "subject_suffix",
+  "parameter_values",
+  "parameter_summary",
+  "result_section",
+  "status",
+  "root_goal",
+  "created_count",
+  "column_break_result",
+  "message"
+ ],
+ "fields": [
+  {
+   "fieldname": "row_key",
+   "fieldtype": "Data",
+   "label": "Row",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "no_copy": 0
+  },
+  {
+   "fieldname": "goal_owner",
+   "fieldtype": "Link",
+   "label": "Goal Owner",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "owner_name",
+   "fieldtype": "Data",
+   "label": "Owner Name",
+   "fetch_from": "goal_owner.full_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template",
+   "options": "Goal Template",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "parent_goal",
+   "fieldtype": "Link",
+   "label": "Parent Goal",
+   "options": "Goal"
+  },
+  {
+   "fieldname": "parent_row",
+   "fieldtype": "Select",
+   "label": "Parent Row",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "Create under the root goal of another row of this campaign."
+  },
+  {
+   "fieldname": "column_break_row",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "code_prefix",
+   "fieldtype": "Data",
+   "label": "Goal Code Prefix",
+   "description": "Empty: from the campaign pattern."
+  },
+  {
+   "fieldname": "subject_suffix",
+   "fieldtype": "Data",
+   "label": "Subject Suffix",
+   "description": "Empty: from the campaign pattern."
+  },
+  {
+   "fieldname": "parameter_values",
+   "fieldtype": "JSON",
+   "label": "Parameter Values",
+   "hidden": 1
+  },
+  {
+   "fieldname": "parameter_summary",
+   "fieldtype": "Small Text",
+   "label": "Parameters",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending\nCreated\nSkipped\nError",
+   "default": "Pending",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "root_goal",
+   "fieldtype": "Link",
+   "label": "Root Goal",
+   "options": "Goal",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "created_count",
+   "fieldtype": "Int",
+   "label": "Goals Created",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_result",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "label": "Message",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "modified": "2026-10-03 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dinext Goals",
+ "name": "Goal Campaign Item",
+ "owner": "Administrator",
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 0,
+ "permissions": []
+}
