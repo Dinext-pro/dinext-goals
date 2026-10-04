@@ -202,6 +202,20 @@ def make_project(name: str, company: str = "Dinext") -> str:
 	return name
 
 
+def _parallel_approval_installed() -> bool:
+	"""True when dinext_common ships the parallel approval package.
+
+	``find_spec('a.b.c')`` imports ``a.b`` and raises ModuleNotFoundError if that
+	package is absent, instead of returning None.
+	"""
+	try:
+		if importlib.util.find_spec("dinext_common.workflow_approval") is None:
+			return False
+		return importlib.util.find_spec("dinext_common.workflow_approval.notifications") is not None
+	except ModuleNotFoundError:
+		return False
+
+
 class GoalTestCase(FrappeTestCase):
 	"""Users live for the class (rolled back by FrappeTestCase); each test rolls back to a savepoint."""
 
@@ -226,7 +240,8 @@ class GoalTestCase(FrappeTestCase):
 			delattr(frappe.local, "dinext_goals_visible_goals")
 		# Tests run background jobs inline; approval e-mails would need an outgoing Email Account.
 		# The parallel engine lives on dinext_common feat/dinext_workflow and is absent from the CI seed.
-		if importlib.util.find_spec("dinext_common.workflow_approval.notifications") is not None:
+		# find_spec("pkg.missing.sub") raises when the middle package is missing; check the package first.
+		if _parallel_approval_installed():
 			notifier = patch("dinext_common.workflow_approval.notifications.send_immediate_notification")
 			notifier.start()
 			self.addCleanup(notifier.stop)
