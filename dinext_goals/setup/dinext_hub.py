@@ -6,12 +6,15 @@ import frappe
 
 APP_NAME = "dinext_goals"
 SECTION = "My Work"
-WORKSPACE_TARGET = "Цели"
+WORKSPACE_TARGET = "Goals"
+# The first release stored the workspace under a Russian name. Migrate drops that document and hub row.
+PREVIOUS_WORKSPACE = "Цели"
 # register_hub_items keeps an existing row's section and never drops cards, so these are removed here.
 REMOVED_TARGETS = (
 	("DocType", "Goal"),
 	("Page", "goal-map"),
 	("DocType", "Goal Template"),
+	("Workspace", PREVIOUS_WORKSPACE),
 )
 
 HUB_ITEMS = (

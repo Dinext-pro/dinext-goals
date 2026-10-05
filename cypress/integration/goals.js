@@ -167,7 +167,7 @@ context("goal analytics", () => {
 	});
 
 	it("Open the workspace", () => {
-		signIn(OWNER, `/app/${encodeURIComponent("цели")}`);
+		signIn(OWNER, "/app/goals");
 		cy.get(".number-widget-box").should("have.length", 9);
 		cy.get(".dashboard-widget-box").should("have.length", 4);
 		cy.contains(".number-widget-box", "Мои цели")
@@ -287,6 +287,36 @@ context("goal analytics", () => {
 			mapItems(win, "goal").forEach((card) => expect(drawnText(win, card), `${card.goal} at zoom 0.3`).to.eq(card.mini));
 			expect(overflowingCards(win), "actual value inside cards").to.be.empty;
 		});
+	});
+
+	it("Map cards follow the Desk theme", () => {
+		signIn(MANAGER);
+		openMap(seed().root);
+		cy.window().then((win) => {
+			const map = goalMap(win);
+			win.__goalMapView = {
+				light: mapItems(win, "goal")[0].itemStyle.color,
+				zoom: map.zoom,
+				center: map.current_center().slice(),
+			};
+			win.document.documentElement.setAttribute("data-theme", "dark");
+		});
+		cy.window().should((win) => {
+			const view = win.__goalMapView;
+			const dark = win
+				.getComputedStyle(win.document.querySelector(".dinext-goal-map"))
+				.getPropertyValue("--dinext-goal-map-card")
+				.trim();
+			const card = mapItems(win, "goal")[0].itemStyle.color;
+			const center = goalMap(win).current_center();
+			expect(dark, "dark card variable").to.include("232323");
+			expect(card, "series card colour").to.eq(dark);
+			expect(card, "card left the light colour").to.not.eq(view.light);
+			expect(goalMap(win).zoom, "zoom").to.eq(view.zoom);
+			expect(center[0], "center x").to.be.closeTo(view.center[0], 1);
+			expect(center[1], "center y").to.be.closeTo(view.center[1], 1);
+		});
+		cy.window().then((win) => win.document.documentElement.setAttribute("data-theme", "light"));
 	});
 
 	it("Map layout and filters", () => {
