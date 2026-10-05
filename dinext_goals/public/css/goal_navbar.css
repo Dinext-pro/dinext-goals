@@ -1,0 +1,38 @@
+:root {
+	--dinext-goal-green: #16a34a;
+	--dinext-goal-yellow: #eab308;
+	--dinext-goal-red: #dc2626;
+	--dinext-goal-none: var(--gray-400, #9ca3af);
+}
+
+[data-theme="dark"] {
+	--dinext-goal-green: #22c55e;
+	--dinext-goal-yellow: #facc15;
+	--dinext-goal-red: #f87171;
+}
+
+.dinext-goal-rag-green { --dinext-goal-rag: var(--dinext-goal-green); }
+.dinext-goal-rag-yellow { --dinext-goal-rag: var(--dinext-goal-yellow); }
+.dinext-goal-rag-red { --dinext-goal-rag: var(--dinext-goal-red); }
+.dinext-goal-rag-none { --dinext-goal-rag: var(--dinext-goal-none); }
+
+.dinext-goal-navbar {
+	align-items: center;
+}
+
+.dinext-goal-navbar-value {
+	display: flex;
+	align-items: baseline;
+	gap: 3px;
+	white-space: nowrap;
+	font-weight: 600;
+	color: var(--dinext-goal-rag, var(--dinext-goal-none));
+}
+
+.dinext-goal-navbar-value:hover {
+	opacity: 0.85;
+}
+
+.dinext-goal-navbar-unit {
+	font-size: var(--text-xs, 11px);
+}

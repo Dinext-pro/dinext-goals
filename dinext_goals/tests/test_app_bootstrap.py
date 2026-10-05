@@ -101,7 +101,10 @@ class TestAppBootstrap(FrappeTestCase):
 		self.assertEqual(frappe.db.get_single_value(SETTINGS, "yellow_threshold"), 10)
 
 	def test_workspace_and_widgets(self):
-		workspace = frappe.get_doc("Workspace", "Цели")
+		workspace = frappe.get_doc("Workspace", "Goals")
+		self.assertFalse(frappe.db.exists("Workspace", "Цели"))
+		self.assertEqual(workspace.label, "Goals")
+		self.assertIn("My Approvals", {row.label for row in workspace.shortcuts})
 		self.assertEqual({row.number_card_name for row in workspace.number_cards}, set(NUMBER_CARDS))
 		self.assertEqual({row.chart_name for row in workspace.charts}, set(CHARTS))
 		self.assertTrue(
@@ -118,12 +121,12 @@ class TestAppBootstrap(FrappeTestCase):
 		register_dinext_hub_items()
 		settings = frappe.get_doc("Dinext Workspace Settings", "Dinext")
 		workspace = [
-			row for row in settings.items if row.element_type == "Workspace" and row.target == "Цели"
+			row for row in settings.items if row.element_type == "Workspace" and row.target == "Goals"
 		]
 		self.assertTrue(workspace)
 		self.assertTrue(all(row.section == "My Work" for row in workspace))
 		self.assertEqual(
-			{(item["element_type"], item["target"]) for item in HUB_ITEMS}, {("Workspace", "Цели")}
+			{(item["element_type"], item["target"]) for item in HUB_ITEMS}, {("Workspace", "Goals")}
 		)
 		ours = {
 			(row.element_type, row.target)
@@ -132,3 +135,4 @@ class TestAppBootstrap(FrappeTestCase):
 		}
 		for key in REMOVED_TARGETS:
 			self.assertNotIn(key, ours)
+		self.assertNotIn(("Workspace", "Цели"), ours)
