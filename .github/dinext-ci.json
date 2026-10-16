@@ -1,0 +1,8 @@
+{
+  "app": "dinext_goals",
+  "package_dir": "dinext_goals",
+  "mode": "frappe-app",
+  "gitflow": true,
+  "frontend_tests": false,
+  "skip_test_records": false
+}
