@@ -1,15 +1,17 @@
+[Русский](README.ru.md)
+
 # Dinext Goals
 
-Frappe-приложение для стека ERPNext Dinext. Каркас product app: модуль `Dinext Goals`, без DocType.
+A Frappe application for the ERPNext Dinext stack. A product app scaffold: the `Dinext Goals` module, without DocTypes.
 
-Репозиторий: `erpnext/dinext/dinext-goals`.
+Repository: `erpnext/dinext/dinext-goals`.
 
-## Зависимости
+## Dependencies
 
 - `dinext_common`
 - `erpnext`
 
-## Установка
+## Installation
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
