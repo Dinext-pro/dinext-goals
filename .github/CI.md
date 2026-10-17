@@ -4,4 +4,4 @@ Checks run on pull requests and maintained branches using the public Dinext vali
 
 Imported upstream workflows are retained under `imported-workflows-disabled` for review. Deployment, publishing, live production smoke checks, paid agents and external notifications remain disabled. The private migration archive retains source settings and CI records.
 
-For app tests, the Actions log records the source and support revisions. `tools-git-sync` uses Python 3.12 and pytest; the portable select-control wheel retains its existing package checks; CRM retains its frontend unit tests.
+For app tests, the Actions log records the source and support revisions. The portable select-control wheel retains its existing package checks; CRM retains its frontend unit tests.
