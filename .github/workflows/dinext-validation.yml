@@ -21,6 +21,3 @@ jobs:
       support_ref: main
       mode: frappe-app
       frontend_tests: false
-      privacy_baselines: ${{ vars.DINEXT_PRIVACY_BASELINES }}
-    secrets:
-      DINEXT_PRIVACY_DENYLIST: ${{ secrets.DINEXT_PRIVACY_DENYLIST }}
