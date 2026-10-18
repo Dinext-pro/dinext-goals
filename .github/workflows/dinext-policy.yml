@@ -1,0 +1,33 @@
+name: Dinext policy
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  workflow_run:
+    workflows: [Dinext validation, Dinext acceptance]
+    types: [completed]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  statuses: write
+concurrency:
+  group: dinext-policy-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+jobs:
+  policy:
+    name: Trusted development admission
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Dinext-pro/dinext-common
+          ref: 77df82ec68a37ddad39f243a5de7746b517767a1
+          path: trusted-policy
+          persist-credentials: false
+          sparse-checkout: .github/ci
+      - name: Inspect current PR without executing its code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 trusted-policy/.github/ci/development_policy.py
