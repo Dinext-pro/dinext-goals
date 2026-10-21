@@ -1,5 +1,25 @@
 [Русский](README.ru.md)
 
+<!-- dinext-presentation:start -->
+<p align="center">
+  <a href="https://dinext.ru"><img src="docs/assets/readme/dinext-logo.png" alt="Dinext" width="128"></a>
+</p>
+<h1 align="center">Dinext Goals</h1>
+
+<hr>
+
+<p align="center">The goal-management application scaffold for Dinext. This branch currently contains the module foundation, without goal DocTypes.</p>
+
+<p align="center">
+  <img src="docs/assets/readme/overview.png" alt="Goal-map example from the Dinext platform documentation; this repository branch remains an application scaffold." width="960">
+</p>
+<p align="center"><sub>Goal-map example from the Dinext platform documentation; this repository branch remains an application scaffold.</sub></p>
+
+<p align="center">
+  <a href="https://dinext.ru">Website</a> · <a href="https://docs.dinext.ru">Documentation</a>
+</p>
+<!-- dinext-presentation:end -->
+
 # Dinext Goals
 
 A Frappe application for the ERPNext Dinext stack. A product app scaffold: the `Dinext Goals` module, without DocTypes.
