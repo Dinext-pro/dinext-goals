@@ -20,13 +20,7 @@ fixtures = [
 	{
 		"doctype": "Workflow State",
 		"filters": [
-			["workflow_state_name", "in", ["Draft", "Parent Approval", "Finance Approval", "Approved"]],
-		],
-	},
-	{
-		"doctype": "Workflow Action Master",
-		"filters": [
-			["name", "in", ["Submit for Approval", "Approve", "Reject"]],
+			["workflow_state_name", "in", ["Parent Approval", "Finance Approval"]],
 		],
 	},
 	{

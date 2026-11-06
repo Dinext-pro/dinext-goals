@@ -29,7 +29,7 @@
     "allow_edit": "All",
     "avoid_status_override": 0,
     "doc_status": "0",
-    "is_optional_state": 0,
+    "is_optional_state": 1,
     "message": null,
     "next_action_email_template": null,
     "parent": "Goal Approval",
