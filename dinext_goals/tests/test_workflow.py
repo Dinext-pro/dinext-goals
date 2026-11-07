@@ -116,6 +116,35 @@ class TestGoalApproval(GoalTestCase):
 			)
 		)
 
+	def test_fixture_upgrade_rebuilds_open_round_and_keeps_digest_enabled(self):
+		from frappe.modules.import_file import import_doc
+		from dinext_common.workflow_approval import email_migration
+		workflow=frappe.get_doc('Workflow','Goal Approval')
+		fixture=workflow.as_dict()
+		workflow.custom_email_profile_version=0
+		for row in workflow.transitions:
+			if row.action=='Reject':row.next_state='Draft'
+		workflow.save(ignore_permissions=True)
+		_root,_middle,leaf=self._tree()
+		act(OWNER,leaf.name,'Submit for Approval')
+		act(MANAGER,leaf.name,'Approve')
+		old=frappe.db.get_value('Workflow Task',{'reference_name':leaf.name,'approver':DIRECTOR,'status':'Working'},'approval_round_id')
+		self.assertEqual(frappe.db.get_value('Workflow','Goal Approval','custom_email_profile_version'),0)
+		previous=frappe.flags.in_fixtures;frappe.flags.in_fixtures=True
+		try:import_doc(fixture)
+		finally:frappe.flags.in_fixtures=previous
+		self.assertEqual(frappe.db.get_value('Workflow','Goal Approval','custom_email_profile_version'),0)
+		frappe.clear_document_cache('Workflow','Goal Approval')
+		with patch.object(email_migration,'APPROVAL_STATES',{'Goal Approval':('Parent Approval','Finance Approval')}):
+			email_migration.ensure_email_profiles()
+		new=frappe.get_doc('Workflow Task',frappe.db.get_value('Workflow Task',{'reference_name':leaf.name,'approver':DIRECTOR,'status':'Working'},'name'))
+		manifest=json.loads(new.round_manifest)
+		self.assertTrue(any(row['action']=='Reject' and row['next_state']=='Rejected' for row in manifest['transitions']))
+		action=frappe.get_doc('Workflow Action',frappe.db.get_value('Workflow Action',{'custom_workflow_task':new.name},'name'))
+		self.assertFalse(action.custom_notification_suppressed)
+		self.assertEqual(action.custom_notification_mode,'Digest')
+		self.assertTrue(frappe.db.exists('Workflow Task',{'approval_round_id':new.approval_round_id,'approver':MANAGER,'status':'Completed'}))
+
 	def test_nobody_can_approve(self):
 		doc = new_goal("Lonely")
 		doc.workflow_state = "Parent Approval"
