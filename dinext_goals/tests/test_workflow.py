@@ -9,7 +9,7 @@ except ImportError:
 	workflow_api = None
 
 from dinext_goals import api as goals_api
-from dinext_goals.constants import GOAL, ROLE_FINANCE, STATUS_ACTIVE, STATUS_DRAFT, STATUS_FOR_APPROVAL
+from dinext_goals.constants import GOAL, ROLE_FINANCE, STATUS_ACTIVE, STATUS_DRAFT, STATUS_FOR_APPROVAL, STATUS_REJECTED
 from dinext_goals.goals import approvers
 from dinext_goals.progress import engine
 from dinext_goals.tests.utils import (
@@ -100,6 +100,14 @@ class TestGoalApproval(GoalTestCase):
 		with self.assertRaises((frappe.ValidationError, ValueError)):
 			act(MANAGER, leaf.name, "Reject")
 		act(MANAGER, leaf.name, "Reject", comment="Target is too low")
+		self.assertEqual(state(leaf.name), ("Rejected", STATUS_REJECTED))
+		rejected = frappe.get_doc(GOAL, leaf.name)
+		rejected.target += 1
+		with self.assertRaises(frappe.ValidationError):
+			rejected.save(ignore_permissions=True)
+		with self.assertRaises(frappe.ValidationError):
+			act(OWNER, leaf.name, "Edit")
+		act(leaf.owner, leaf.name, "Edit")
 		self.assertEqual(state(leaf.name), ("Draft", STATUS_DRAFT))
 		self.assertTrue(
 			frappe.db.exists(

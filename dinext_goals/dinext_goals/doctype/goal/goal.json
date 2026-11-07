@@ -119,7 +119,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Draft\nFor Approval\nActive\nOn Hold\nClosed\nCancelled",
+   "options": "Draft\nFor Approval\nActive\nOn Hold\nClosed\nCancelled\nRejected",
    "read_only": 1,
    "search_index": 1
   },
@@ -398,11 +398,11 @@
    "read_only_depends_on": "eval:doc.status && doc.status != 'Draft'"
   },
   {
+   "depends_on": "eval:doc.target_source == 'Provider'",
+   "description": "Provider that returns the target. Empty: the metric provider.",
    "fieldname": "target_provider",
    "fieldtype": "Select",
    "label": "Target Provider",
-   "description": "Provider that returns the target. Empty: the metric provider.",
-   "depends_on": "eval:doc.target_source == 'Provider'",
    "read_only_depends_on": "eval:doc.status && doc.status != 'Draft'"
   },
   {
@@ -599,7 +599,7 @@
    "link_fieldname": "goal"
   }
  ],
- "modified": "2026-10-03 13:14:23.639665",
+ "modified": "2026-11-07 15:10:39.845836",
  "modified_by": "Administrator",
  "module": "Dinext Goals",
  "name": "Goal",
