@@ -1,0 +1,48 @@
+# Shared release policy is pinned; deploy is outside this workflow.
+name: Release
+'on':
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version tag to release
+        required: true
+        type: string
+      commit:
+        description: Full 40-character stable branch SHA
+        required: true
+        type: string
+      dry-run:
+        description: Validate only; create no tag or GitHub Release
+        type: boolean
+        default: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: dinext-release-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  preflight:
+    name: Release preflight
+    uses: Dinext-pro/dinext-common/.github/workflows/dinext-release-preflight.yml@17553c931396280fbd1d0c22eab6da94ce188dbc
+    with:
+      support-ref: 17553c931396280fbd1d0c22eab6da94ce188dbc
+      version: ${{ inputs.version }}
+      commit: ${{ inputs.commit }}
+  validation:
+    name: Release validation
+    needs: preflight
+    uses: ./.github/workflows/dinext-validation.yml
+  publish:
+    name: Publish verified release
+    needs:
+    - preflight
+    - validation
+    uses: Dinext-pro/dinext-common/.github/workflows/dinext-release-publish.yml@17553c931396280fbd1d0c22eab6da94ce188dbc
+    with:
+      support-ref: 17553c931396280fbd1d0c22eab6da94ce188dbc
+      version: ${{ inputs.version }}
+      commit: ${{ inputs.commit }}
+      dry-run: ${{ inputs.dry-run }}
+      artifact-id: ${{ needs.preflight.outputs.artifact-id }}
+      preparation-sha256: ${{ needs.preflight.outputs.sha256 }}
