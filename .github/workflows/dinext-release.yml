@@ -24,9 +24,9 @@ concurrency:
 jobs:
   preflight:
     name: Release preflight
-    uses: Dinext-pro/dinext-common/.github/workflows/dinext-release-preflight.yml@17553c931396280fbd1d0c22eab6da94ce188dbc
+    uses: Dinext-pro/dinext-common/.github/workflows/dinext-release-preflight.yml@a5a8bfb29b966d623909385bcd91bdea8132f383
     with:
-      support-ref: 17553c931396280fbd1d0c22eab6da94ce188dbc
+      support-ref: a5a8bfb29b966d623909385bcd91bdea8132f383
       version: ${{ inputs.version }}
       commit: ${{ inputs.commit }}
   validation:
@@ -38,9 +38,11 @@ jobs:
     needs:
     - preflight
     - validation
-    uses: Dinext-pro/dinext-common/.github/workflows/dinext-release-publish.yml@17553c931396280fbd1d0c22eab6da94ce188dbc
+    uses: Dinext-pro/dinext-common/.github/workflows/dinext-release-publish.yml@a5a8bfb29b966d623909385bcd91bdea8132f383
+    secrets:
+      DINEXT_RELEASE_APP_PRIVATE_KEY: ${{ secrets.DINEXT_RELEASE_APP_PRIVATE_KEY }}
     with:
-      support-ref: 17553c931396280fbd1d0c22eab6da94ce188dbc
+      support-ref: a5a8bfb29b966d623909385bcd91bdea8132f383
       version: ${{ inputs.version }}
       commit: ${{ inputs.commit }}
       dry-run: ${{ inputs.dry-run }}
