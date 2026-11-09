@@ -1,6 +1,8 @@
 name: Dinext validation
 'on':
+  workflow_call: {}
   push:
+    tags: ['v*', 'dinext/**']
     branches:
     - main
     - develop
@@ -11,9 +13,19 @@ name: Dinext validation
 permissions:
   contents: read
 concurrency:
-  group: dinext-validation-${{ github.ref }}
+  group: dinext-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  release-context:
+    name: Tag source context
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Verify native tag context
+        run: |
+          test "$GITHUB_REF_TYPE" = tag
+          test "$GITHUB_REF" = "refs/tags/$GITHUB_REF_NAME"
   validation:
     name: Validation
     uses: Dinext-pro/dinext-common/.github/workflows/dinext-reusable.yml@main
