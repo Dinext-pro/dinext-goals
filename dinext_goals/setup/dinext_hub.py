@@ -24,7 +24,7 @@ HUB_ITEMS = (
 		"target": WORKSPACE_TARGET,
 		"label": "Goals",
 		"description": "Goal dashboard: counts, my progress and goals at risk.",
-		"icon": "target",
+		"icon": "arrow-up-right",
 	},
 )
 
@@ -41,13 +41,23 @@ def register_dinext_hub_items() -> None:
 	if not frappe.db.exists("Dinext Workspace Settings", "Dinext"):
 		return
 	settings = frappe.get_doc("Dinext Workspace Settings", "Dinext")
+	icon_updated = False
+	for row in settings.items:
+		if (
+			row.element_type == "Workspace"
+			and row.target == WORKSPACE_TARGET
+			and row.source_app == APP_NAME
+			and row.icon == "target"
+		):
+			row.icon = HUB_ITEMS[0]["icon"]
+			icon_updated = True
 	removed = [
 		row
 		for row in settings.items
 		if (row.element_type, row.target) in REMOVED_TARGETS
 		and (not row.source_app or row.source_app == APP_NAME)
 	]
-	if not removed:
+	if not removed and not icon_updated:
 		return
 	for row in removed:
 		settings.remove(row)

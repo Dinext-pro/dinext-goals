@@ -1,0 +1,104 @@
+name: Dinext acceptance
+
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: goals-navigation-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cypress:
+    name: Cypress acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_ROOT_HOST: '%'
+        ports: [3306:3306]
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pci"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Dinext-pro/dinext-common
+          ref: afbbe97eee7a3f4ed1a151d6d07e6cf441c9d7d2
+          path: ci-support
+          persist-credentials: false
+          sparse-checkout: .github/ci
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+      - name: Install isolated acceptance tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mariadb-client libmariadb-dev libmariadb-dev-compat \
+            libxml2-dev libxslt1-dev libffi-dev libjpeg-dev zlib1g-dev redis-tools \
+            xvfb libgtk-3-0 libnss3 libnspr4 libasound2t64 libgbm1
+          python -m pip install frappe-bench==5.31.0
+          npm install --global yarn@1.22.22
+          npm install --prefix "$RUNNER_TEMP/cypress-tools" cypress@13.17.0 --no-audit --no-fund
+          sudo install -d -o "$(id -un)" -g "$(id -gn)" /home/frappe
+          ln -s "$RUNNER_TEMP/dinext-test-bench" /home/frappe/frappe-bench
+      - name: Build disposable bench and run server tests
+        env:
+          CI: 'true'
+          DINEXT_DEPLOY_ENABLED: 'false'
+          DINEXT_NOTIFICATIONS_ENABLED: 'false'
+          DINEXT_DOCS_AGENT_ENABLED: '0'
+          DINEXT_WIKI_PUBLISH_ENABLED: '0'
+        run: python ci-support/.github/ci/bench_tests.py "$GITHUB_WORKSPACE"
+      - name: Check the Goals sidebar and Hub card
+        env:
+          DEV_SERVER: '1'
+          CYPRESS_adminPassword: ci-admin
+        run: |
+          set -euo pipefail
+          bench_dir="$RUNNER_TEMP/dinext-test-bench"
+          output="$RUNNER_TEMP/goals-navigation"
+          mkdir -p "$output"
+          test "$(git -C "$bench_dir/apps/dinext_goals" rev-parse HEAD)" = "$(git rev-parse HEAD)"
+          cd "$bench_dir"
+          bench --site ci.test execute frappe.db.set_single_value --args '["System Settings","setup_complete",1]'
+          bench --site ci.test execute frappe.db.set_value --args '["Installed Application",{"is_setup_complete":0},"is_setup_complete",1]'
+          bench --site ci.test clear-cache
+          bench --site ci.test serve --port 8000 --noreload > "$output/server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          curl -fsS --retry 30 --retry-all-errors --retry-delay 1 http://127.0.0.1:8000/api/method/ping
+          "$RUNNER_TEMP/cypress-tools/node_modules/.bin/cypress" run \
+            --project "$bench_dir/apps/dinext_goals" --browser electron --headless \
+            --config-file cypress.navigation-icons.config.cjs \
+            --reporter junit --reporter-options "mochaFile=$output/cypress.xml"
+          python - "$output/cypress.xml" <<'PYTHON'
+          import sys
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse(sys.argv[1]).iter("testcase"))
+          assert len(cases) == 1
+          assert all(cases[0].find(tag) is None for tag in ("error", "failure", "skipped"))
+          PYTHON
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: goals-navigation-acceptance
+          path: ${{ runner.temp }}/goals-navigation/
+          if-no-files-found: error
+          retention-days: 14

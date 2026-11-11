@@ -125,6 +125,7 @@ class TestAppBootstrap(FrappeTestCase):
 		]
 		self.assertTrue(workspace)
 		self.assertTrue(all(row.section == "My Work" for row in workspace))
+		self.assertEqual(HUB_ITEMS[0]["icon"], frappe.db.get_value("Workspace", "Goals", "icon"))
 		self.assertEqual(
 			{(item["element_type"], item["target"]) for item in HUB_ITEMS}, {("Workspace", "Goals")}
 		)
@@ -136,3 +137,12 @@ class TestAppBootstrap(FrappeTestCase):
 		for key in REMOVED_TARGETS:
 			self.assertNotIn(key, ours)
 		self.assertNotIn(("Workspace", "Цели"), ours)
+
+	def test_goals_hub_icon_updates_only_the_previous_default(self):
+		settings = frappe.get_doc("Dinext Workspace Settings", "Dinext")
+		card = next(row for row in settings.items if row.element_type == "Workspace" and row.target == "Goals")
+		for saved, expected in (("target", "arrow-up-right"), ("chart", "chart")):
+			with self.subTest(saved=saved):
+				card.db_set("icon", saved)
+				register_dinext_hub_items()
+				self.assertEqual(frappe.db.get_value(card.doctype, card.name, "icon"), expected)
