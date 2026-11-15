@@ -62,7 +62,7 @@ class TestGoalApproval(GoalTestCase):
 		return root, middle, leaf
 
 	def test_two_level_approval(self):
-		_root, _middle, leaf = self._tree()
+		root, middle, leaf = self._tree()
 		self.assertEqual(leaf.approver_users.split("\n"), sorted([DIRECTOR, MANAGER]))
 		act(OWNER, leaf.name, "Submit for Approval")
 		self.assertEqual(state(leaf.name), ("Parent Approval", STATUS_FOR_APPROVAL))
@@ -73,6 +73,20 @@ class TestGoalApproval(GoalTestCase):
 		self.assertEqual(state(leaf.name), ("Finance Approval", STATUS_FOR_APPROVAL))
 		act(FINANCE, leaf.name, "Approve")
 		self.assertEqual(state(leaf.name), ("Approved", STATUS_ACTIVE))
+		with as_user(OWNER):
+			approved = self.reload(leaf.name)
+			approved.current_value = 40
+			approved.save()
+		self.assertEqual(state(leaf.name), ("Approved", STATUS_ACTIVE))
+		self.assertEqual(frappe.db.get_value(GOAL, middle.name, "progress"), 40)
+		self.assertEqual(frappe.db.get_value(GOAL, root.name, "progress"), 40)
+		self.assertFalse(frappe.db.exists("Workflow Task", {
+			"reference_doctype": GOAL, "reference_name": leaf.name, "status": "Working",
+		}))
+
+		independent = make_goal("Independent specialist goal", owner=OWNER, parents=[middle.name])
+		act(OWNER, independent.name, "Submit for Approval")
+		self.assertEqual(state(independent.name), ("Parent Approval", STATUS_FOR_APPROVAL))
 
 	def test_only_the_goal_owner_submits(self):
 		_root, _middle, leaf = self._tree()

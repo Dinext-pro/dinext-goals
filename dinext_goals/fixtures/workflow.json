@@ -1,5 +1,6 @@
 [
  {
+  "custom_activation_condition": "doc.workflow_state != 'Approved' and (doc.status or 'Draft') in ('Draft', 'For Approval', 'Rejected')",
   "custom_approval_monitor_roles": [
    {
     "parent": "Goal Approval",
@@ -23,7 +24,7 @@
   "doctype": "Workflow",
   "document_type": "Goal",
   "is_active": 1,
-  "modified": "2026-11-07 15:18:04.325167",
+  "modified": "2026-11-16 02:14:57.201935",
   "name": "Goal Approval",
   "override_status": 1,
   "send_email_alert": 1,
