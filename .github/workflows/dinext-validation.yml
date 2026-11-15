@@ -33,3 +33,7 @@ jobs:
       support_ref: main
       mode: frappe-app
       frontend_tests: false
+  acceptance:
+    name: Acceptance
+    if: github.event_name == 'pull_request' && (github.base_ref == 'develop')
+    uses: ./.github/workflows/dinext-acceptance.yml
