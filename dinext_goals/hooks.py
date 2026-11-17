@@ -87,6 +87,12 @@ dinext_goals_metric_providers = {
 	"energy_points": "dinext_goals.providers.energy_points.provider",
 }
 
+workflow_approval_domain_handlers = {
+	"Goal": {
+		"validate_vote": "dinext_goals.goals.approvers.validate_submission_vote",
+	},
+}
+
 workflow_approval_fingerprint_excluded_fields = [
 	{
 		"Goal": [

@@ -1,4 +1,6 @@
 import json
+from importlib import import_module
+from unittest import TestCase
 from unittest.mock import patch
 
 import frappe
@@ -9,14 +11,24 @@ except ImportError:
 	workflow_api = None
 
 from dinext_goals import api as goals_api
-from dinext_goals.constants import GOAL, ROLE_FINANCE, STATUS_ACTIVE, STATUS_DRAFT, STATUS_FOR_APPROVAL, STATUS_REJECTED
+from dinext_goals.constants import (
+	GOAL,
+	ROLE_APPROVER,
+	ROLE_FINANCE,
+	STATUS_ACTIVE,
+	STATUS_DRAFT,
+	STATUS_FOR_APPROVAL,
+	STATUS_REJECTED,
+)
 from dinext_goals.goals import approvers
 from dinext_goals.progress import engine
 from dinext_goals.tests.utils import (
 	DIRECTOR,
 	FINANCE,
 	MANAGER,
+	OUTSIDER,
 	OWNER,
+	OWNER_B,
 	GoalTestCase,
 	as_user,
 	make_goal,
@@ -47,6 +59,28 @@ def open_approvers(goal):
 
 def state(goal):
 	return frappe.db.get_value(GOAL, goal, ["workflow_state", "status"])
+
+
+class TestGoalSubmissionGuard(TestCase):
+	def test_submission_checks_current_recipients_before_consuming_vote(self):
+		if workflow_api is None:
+			self.skipTest("dinext_common.workflow_approval is not installed")
+
+		from dinext_common.workflow_approval.engine import WorkflowDomainRollbackError
+		from dinext_goals import hooks
+
+		doc = frappe._dict(doctype=GOAL, workflow_state="Draft", approver_users="former@example.com")
+		handler = getattr(hooks, "workflow_approval_domain_handlers", {}).get(GOAL, {}).get("validate_vote")
+		for recipients, diagnostic in (([], "no owner of a parent goal"), (["new@example.com"], "finance step")):
+			with (
+				self.subTest(recipients=recipients),
+				patch.object(approvers, "compute_approver_users", return_value=recipients),
+				patch.object(approvers, "finance_approvers", return_value=[]),
+				self.assertRaisesRegex(WorkflowDomainRollbackError, diagnostic),
+			):
+				if handler:
+					module, method = handler.rsplit(".", 1)
+					getattr(import_module(module), method)(doc, "Parent Approval")
 
 
 class TestGoalApproval(GoalTestCase):
@@ -93,6 +127,41 @@ class TestGoalApproval(GoalTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			act(MANAGER, leaf.name, "Submit for Approval")
 		self.assertEqual(state(leaf.name), ("Draft", STATUS_DRAFT))
+
+	def test_new_draft_owner_can_submit_without_an_administrative_reset(self):
+		_root, _middle, leaf = self._tree()
+		creator = leaf.owner
+		with as_user(creator):
+			leaf.goal_owner = OWNER_B
+			leaf.save()
+
+		act(OWNER_B, leaf.name, "Submit for Approval")
+		self.assertEqual(state(leaf.name), ("Parent Approval", STATUS_FOR_APPROVAL))
+		self.assertEqual(frappe.db.get_value(GOAL, leaf.name, "owner"), creator)
+
+	def test_rebuilding_after_ancestor_owner_change_assigns_current_approver(self):
+		root, _middle, leaf = self._tree()
+		act(OWNER, leaf.name, "Submit for Approval")
+		act(MANAGER, leaf.name, "Approve")
+		round_id = frappe.db.get_value("Workflow Task", {
+			"reference_doctype": GOAL, "reference_name": leaf.name, "approver": DIRECTOR, "status": "Working",
+		}, "approval_round_id")
+		previous_vote = frappe.db.get_value("Workflow Task", {
+			"approval_round_id": round_id, "approver": MANAGER, "status": "Completed",
+		}, ["name", "completed_at"], as_dict=True)
+
+		with as_user("Administrator"):
+			frappe.get_doc("User", OUTSIDER).add_roles(ROLE_APPROVER)
+			root.reload()
+			root.goal_owner = OUTSIDER
+			root.save()
+			workflow_api.reset_round(round_id, "Ancestor owner changed")
+
+		self.assertEqual(open_approvers(leaf.name), sorted([MANAGER, OUTSIDER]))
+		self.assertEqual(
+			frappe.db.get_value("Workflow Task", previous_vote.name, "completed_at"),
+			previous_vote.completed_at,
+		)
 
 	def test_root_goal(self):
 		root = make_goal("Root goal", owner=OWNER)

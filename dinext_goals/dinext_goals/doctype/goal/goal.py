@@ -66,10 +66,16 @@ class Goal(Document):
 		include_descendants = before is not None and parameters.signature_of(
 			before
 		) != parameters.signature_of(self)
-		if include_descendants or (
-			before is not None and hierarchy.doc_parent_names(before) != hierarchy.doc_parent_names(self)
-		):
-			parameters.sync_goal_projects(hierarchy.get_descendants(self.name))
+		parents_changed = before is not None and hierarchy.doc_parent_names(before) != hierarchy.doc_parent_names(self)
+		owner_changed = before is not None and before.goal_owner != self.goal_owner
+		if owner_changed:
+			approvers.retire_previous_draft_assignment(self, before.goal_owner)
+		if include_descendants or parents_changed or owner_changed:
+			descendants = hierarchy.get_descendants(self.name)
+			if include_descendants or parents_changed:
+				parameters.sync_goal_projects(descendants)
+			if parents_changed or owner_changed:
+				approvers.refresh_parent_approval_candidates(descendants)
 		if self.flags.skip_related_recalculation:
 			return
 		engine.recalculate_related(self, include_descendants=include_descendants)
