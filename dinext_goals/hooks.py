@@ -112,3 +112,7 @@ workflow_approval_fingerprint_excluded_fields = [
 		],
 	}
 ]
+
+workflow_approval_email_profile_providers = ["dinext_goals.workflow_settings.email_profiles"]
+
+workflow_approval_preserve_fixture_transition_ids = ['Goal Approval']
