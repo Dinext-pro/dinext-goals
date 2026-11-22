@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: Dinext-pro/dinext-common
-          ref: afbbe97eee7a3f4ed1a151d6d07e6cf441c9d7d2
+          ref: 9a9580083cf0a7302e0ac9b866b7ba18b97025f0
           path: ci-support
           persist-credentials: false
           sparse-checkout: .github/ci
@@ -57,6 +57,25 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/cypress-tools" cypress@13.17.0 --no-audit --no-fund
           sudo install -d -o "$(id -un)" -g "$(id -gn)" /home/frappe
           ln -s "$RUNNER_TEMP/dinext-test-bench" /home/frappe/frappe-bench
+      - name: Use the integrated Workflow dependencies
+        run: |
+          python - <<'PYTHON'
+          import json
+          from pathlib import Path
+          from runpy import run_path
+          import subprocess
+
+          support = Path("ci-support/.github/ci")
+          catalog_path = support / "public-apps.json"
+          catalog = json.loads(catalog_path.read_text())
+          pins = run_path(str(support / "workflow_acceptance.py"))["DEPENDENCIES"]
+          pins["dinext_common"] = subprocess.check_output(
+              ["git", "-C", "ci-support", "rev-parse", "HEAD"], text=True
+          ).strip()
+          for app, revision in pins.items():
+              catalog[app]["ci_sha"] = revision
+          catalog_path.write_text(json.dumps(catalog))
+          PYTHON
       - name: Build disposable bench and run server tests
         env:
           CI: 'true'
@@ -65,6 +84,38 @@ jobs:
           DINEXT_DOCS_AGENT_ENABLED: '0'
           DINEXT_WIKI_PUBLISH_ENABLED: '0'
         run: python ci-support/.github/ci/bench_tests.py "$GITHUB_WORKSPACE"
+      - name: Test Goals approvals on a fresh site with required apps
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/goals-navigation"
+          mkdir -p "$output"
+          cd "$RUNNER_TEMP/dinext-test-bench"
+          bench new-site goals-minimal.test --db-host 127.0.0.1 --no-mariadb-socket \
+            --mariadb-root-password ci --admin-password ci-admin
+          bench --site goals-minimal.test install-app erpnext
+          bench --site goals-minimal.test install-app dinext_common
+          bench --site goals-minimal.test install-app dinext_goals
+          bench --site goals-minimal.test set-config allow_tests true
+          bench --site goals-minimal.test set-config enable_parallel_workflow_approval true
+          bench --site goals-minimal.test migrate
+          bench --site goals-minimal.test execute frappe.get_installed_apps > "$output/minimal-apps.json"
+          bench --site goals-minimal.test execute erpnext.setup.utils.before_tests
+          bench --site goals-minimal.test run-tests --app dinext_goals --module dinext_goals.tests.test_workflow \
+            --skip-test-records --junit-xml-output="$output/goals-workflow.xml"
+          python - "$output" <<'PYTHON'
+          import json
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+
+          output = Path(sys.argv[1])
+          assert set(json.loads((output / "minimal-apps.json").read_text())) == {
+              "frappe", "erpnext", "dinext_common", "dinext_goals"
+          }
+          cases = list(ET.parse(output / "goals-workflow.xml").iter("testcase"))
+          assert any("test_two_level_approval" in case.get("name", "") for case in cases)
+          assert all(case.find(tag) is None for case in cases for tag in ("error", "failure", "skipped"))
+          PYTHON
       - name: Check the Goals sidebar and Hub card
         env:
           DEV_SERVER: '1'

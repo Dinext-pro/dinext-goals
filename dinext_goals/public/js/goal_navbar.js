@@ -2,7 +2,7 @@
 (function () {
 	const METHOD = "dinext_goals.api.get_navbar_goal";
 	const REFRESH_MS = 60 * 1000;
-	const MAP_STATUSES = ["Draft", "For Approval", "Active", "On Hold"];
+	const MAP_STATUSES = ["Draft", "Rejected", "For Approval", "Active", "On Hold"];
 	const RAGS = ["green", "yellow", "red"];
 	let loaded_at = 0;
 	let loading = false;

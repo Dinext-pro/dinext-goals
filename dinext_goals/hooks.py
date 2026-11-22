@@ -20,13 +20,7 @@ fixtures = [
 	{
 		"doctype": "Workflow State",
 		"filters": [
-			["workflow_state_name", "in", ["Draft", "Parent Approval", "Finance Approval", "Approved"]],
-		],
-	},
-	{
-		"doctype": "Workflow Action Master",
-		"filters": [
-			["name", "in", ["Submit for Approval", "Approve", "Reject"]],
+			["workflow_state_name", "in", ["Parent Approval", "Finance Approval"]],
 		],
 	},
 	{
@@ -93,6 +87,12 @@ dinext_goals_metric_providers = {
 	"energy_points": "dinext_goals.providers.energy_points.provider",
 }
 
+workflow_approval_domain_handlers = {
+	"Goal": {
+		"validate_vote": "dinext_goals.goals.approvers.validate_submission_vote",
+	},
+}
+
 workflow_approval_fingerprint_excluded_fields = [
 	{
 		"Goal": [
@@ -112,3 +112,7 @@ workflow_approval_fingerprint_excluded_fields = [
 		],
 	}
 ]
+
+workflow_approval_email_profile_providers = ["dinext_goals.workflow_settings.email_profiles"]
+
+workflow_approval_preserve_fixture_transition_ids = ['Goal Approval']

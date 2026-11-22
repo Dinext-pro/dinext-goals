@@ -21,7 +21,7 @@ const READABLE_ZOOM = 0.4;
 const BAR_STEPS = 20;
 const RAGS = ["green", "yellow", "red", "none"];
 const ORIENT_KEY = "dinext_goal_map_orient";
-const STATUSES = ["Draft", "For Approval", "Active", "On Hold", "Closed", "Cancelled"];
+const STATUSES = ["Draft", "Rejected", "For Approval", "Active", "On Hold", "Closed", "Cancelled"];
 const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0d9488", "#4f46e5", "#0891b2", "#65a30d"];
 
 // Card text is measured at zoom 1 and fonts scale linearly with the zoom, so it fits at any zoom.
