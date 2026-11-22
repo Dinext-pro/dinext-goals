@@ -1,5 +1,6 @@
 import json
 from importlib import import_module
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -88,6 +89,10 @@ class TestGoalApproval(GoalTestCase):
 		super().setUp()
 		if workflow_api is None and self._testMethodName != "test_nobody_can_approve":
 			self.skipTest("dinext_common.workflow_approval is not installed")
+
+		engine_flag = patch.dict(frappe.local.conf, enable_parallel_workflow_approval=True)
+		engine_flag.start()
+		self.addCleanup(engine_flag.stop)
 
 	def _tree(self, **leaf_values):
 		root = make_group("Director goal", owner=DIRECTOR)
@@ -199,34 +204,49 @@ class TestGoalApproval(GoalTestCase):
 			)
 		)
 
-	def test_fixture_upgrade_rebuilds_open_round_and_keeps_digest_enabled(self):
+	def test_fixture_upgrade_preserves_open_round_vote_and_digest(self):
 		from frappe.modules.import_file import import_doc
-		from dinext_common.workflow_approval import email_migration
-		workflow=frappe.get_doc('Workflow','Goal Approval')
-		fixture=workflow.as_dict()
-		workflow.custom_email_profile_version=0
+		from dinext_common.workflow_approval.email_migration import ensure_email_profiles
+
+		workflow = frappe.get_doc("Workflow", "Goal Approval")
+		workflow.custom_email_profile_version = 0
 		for row in workflow.transitions:
-			if row.action=='Reject':row.next_state='Draft'
+			if row.action == "Reject":
+				row.next_state = "Draft"
 		workflow.save(ignore_permissions=True)
-		_root,_middle,leaf=self._tree()
-		act(OWNER,leaf.name,'Submit for Approval')
-		act(MANAGER,leaf.name,'Approve')
-		old=frappe.db.get_value('Workflow Task',{'reference_name':leaf.name,'approver':DIRECTOR,'status':'Working'},'approval_round_id')
-		self.assertEqual(frappe.db.get_value('Workflow','Goal Approval','custom_email_profile_version'),0)
-		previous=frappe.flags.in_fixtures;frappe.flags.in_fixtures=True
-		try:import_doc(fixture)
-		finally:frappe.flags.in_fixtures=previous
-		self.assertEqual(frappe.db.get_value('Workflow','Goal Approval','custom_email_profile_version'),0)
-		frappe.clear_document_cache('Workflow','Goal Approval')
-		with patch.object(email_migration,'APPROVAL_STATES',{'Goal Approval':('Parent Approval','Finance Approval')}):
-			email_migration.ensure_email_profiles()
-		new=frappe.get_doc('Workflow Task',frappe.db.get_value('Workflow Task',{'reference_name':leaf.name,'approver':DIRECTOR,'status':'Working'},'name'))
-		manifest=json.loads(new.round_manifest)
-		self.assertTrue(any(row['action']=='Reject' and row['next_state']=='Rejected' for row in manifest['transitions']))
-		action=frappe.get_doc('Workflow Action',frappe.db.get_value('Workflow Action',{'custom_workflow_task':new.name},'name'))
+		_root, _middle, leaf = self._tree()
+		act(OWNER, leaf.name, "Submit for Approval")
+		act(MANAGER, leaf.name, "Approve")
+		waiting = {"reference_doctype": GOAL, "reference_name": leaf.name, "approver": DIRECTOR, "status": "Working"}
+		task = frappe.get_doc("Workflow Task", waiting)
+		old_round = task.approval_round_id
+		self.assertTrue(any(
+			row["action"] == "Reject" and row["next_state"] == "Draft"
+			for row in json.loads(task.round_manifest)["transitions"]
+		))
+
+		fixture_path = Path(frappe.get_app_path("dinext_goals", "fixtures", "workflow.json"))
+		[fixture] = json.loads(fixture_path.read_text(encoding="utf-8"))
+		with patch.dict(frappe.local.flags, in_fixtures=True):
+			import_doc(fixture)
+		self.assertEqual(frappe.db.get_value("Workflow", workflow.name, "custom_email_profile_version"), 0)
+		frappe.clear_document_cache("Workflow", workflow.name)
+		ensure_email_profiles()
+		self.assertEqual(frappe.db.get_value("Workflow", workflow.name, "custom_email_profile_version"), 1)
+
+		task.reload()
+		self.assertEqual(task.status, "Working")
+		self.assertEqual(task.approval_round_id, old_round)
+		manifest = json.loads(task.round_manifest)
+		self.assertTrue(any(
+			row["action"] == "Reject" and row["next_state"] == "Rejected" for row in manifest["transitions"]
+		))
+		action = frappe.get_doc("Workflow Action", {"custom_workflow_task": task.name})
 		self.assertFalse(action.custom_notification_suppressed)
-		self.assertEqual(action.custom_notification_mode,'Digest')
-		self.assertTrue(frappe.db.exists('Workflow Task',{'approval_round_id':new.approval_round_id,'approver':MANAGER,'status':'Completed'}))
+		self.assertEqual(action.custom_notification_mode, "Digest")
+		self.assertTrue(frappe.db.exists("Workflow Task", {
+			"approval_round_id": task.approval_round_id, "approver": MANAGER, "status": "Completed",
+		}))
 
 	def test_nobody_can_approve(self):
 		doc = new_goal("Lonely")
