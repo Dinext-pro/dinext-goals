@@ -9,6 +9,7 @@ frappe.listview_settings["Goal"] = {
 		}
 		const colors = {
 			Draft: "gray",
+			Rejected: "red",
 			"For Approval": "orange",
 			"On Hold": "yellow",
 			Closed: "green",

@@ -84,6 +84,7 @@
 "Goal of a template; items form a tree through item_key and parent_key.","Цель шаблона; строки образуют дерево через item_key и parent_key.",""
 "Goal owner {0} is disabled","Владелец цели {0} отключен",""
 "Goal owner {0} must have the Goal Owner role","Владелец цели {0} должен иметь роль «Владелец цели»",""
+"Goal owner changed","Владелец цели изменился",""
 "Goal with hierarchy, metric, progress roll-up and approval.","Цель с иерархией, метрикой, сверткой прогресса и согласованием.",""
 "Goals Settings","Настройки целей",""
 "Goals at Risk","Цели под риском",""
