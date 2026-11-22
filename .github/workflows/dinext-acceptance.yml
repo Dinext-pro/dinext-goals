@@ -99,6 +99,7 @@ jobs:
           bench --site goals-minimal.test set-config enable_parallel_workflow_approval true
           bench --site goals-minimal.test migrate
           bench --site goals-minimal.test execute frappe.get_installed_apps > "$output/minimal-apps.json"
+          bench --site goals-minimal.test execute erpnext.setup.utils.before_tests
           bench --site goals-minimal.test run-tests --app dinext_goals --module dinext_goals.tests.test_workflow \
             --skip-test-records --junit-xml-output="$output/goals-workflow.xml"
           python - "$output" <<'PYTHON'
